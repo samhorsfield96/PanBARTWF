@@ -1,6 +1,8 @@
 # A repository of scripts for testing of PanBART, an LLM trained on pangenomes
 
-Find the PanBART repository [here](https://github.com/samhorsfield96/panBART/tree/main#)
+Find the PanBART repository [here](https://github.com/samhorsfield96/panBART/tree/main#).
+
+Pre-trained models for E. coli and S. pneumoniae can be found [here](https://zenodo.org/records/19823911).
 
 ## coselection_analysis
 
