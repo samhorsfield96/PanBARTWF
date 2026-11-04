@@ -1,4 +1,4 @@
-# A repository of scripts for testing of PanBART, an LLM trained on pangenomes
+# PanBART WorflowFlow (PanBARTWF): A repository of scripts for testing of PanBART, an LLM trained on pangenomes
 
 Find the PanBART repository [here](https://github.com/samhorsfield96/panBART/tree/main#).
 
