@@ -11,6 +11,20 @@ library(tidyr)
 library(dplyr)
 library(optparse)
 
+option_list <- list(
+  make_option("--indir", type = "character", help = "Input directory containing species subdirectories."),
+  make_option("--outpref", type = "character", default = "output",
+              help = "Output prefix for saved plots. Default = 'output'."),
+  make_option("--species", type = "character", default = "E_coli",
+              help = "Species subdirectory name."),
+  make_option("--min-count", type = "integer", default = 1,
+              help = "Minimum cluster count to include."),
+  make_option("--num-bins", type = "integer", default = 5,
+              help = "Number of bins for proportion summaries.")
+)
+opt <- parse_args(OptionParser(option_list = option_list))
+library(ggpubr)
+
 parse_filename <- function(filename) {
   list(
     Sampled = if (grepl("_sampled_", filename)) {
@@ -58,7 +72,7 @@ parse_filename <- function(filename) {
 
 plot_individual <- function(df_paths, min_count, num_bins)
 {
-  j <- 4
+  j <- 1
   for (j in 1:length(df_paths))
   {
     # get silhouette values
@@ -82,23 +96,13 @@ plot_individual <- function(df_paths, min_count, num_bins)
       df[[name]] <- parsed_values[[name]]
     }
     
-    # Use hist() to define breaks and counts
-    breaks = seq(0, 1.0, by = 1.0 / num_bins)
-    h <- hist(df$Proportion, breaks = breaks, plot = FALSE)
-    
-    # Use cut() to assign each Count to a bin
-    df$bin <- cut(df$Proportion, breaks = h$breaks, include.lowest = TRUE, right = TRUE)
-    
-    # Extract the bin start and end for each row
-    # First, make a data frame mapping factor levels to start/end
-    bin_map <- data.frame(
-      bin = levels(df$bin),
-      bin_start = head(h$breaks, -1),
-      bin_end = tail(h$breaks, -1)
-    )
-    
-    # Merge bin information back to df
-    df <- merge(df, bin_map, by = "bin", all.x = TRUE)
+    if (parsed_values$Train == TRUE & parsed_values$Sampled == TRUE) {
+      df_train_counts_sampled <- as.data.frame(cbind(df$Train, df$Sampled, df$Cluster, df$Count))
+      colnames(df_train_counts_sampled) <- c("Train", "Sampled", "Cluster", "Count")
+    } else if (parsed_values$Train == TRUE & parsed_values$Sampled != TRUE) {
+      df_train_counts_full <- as.data.frame(cbind(df$Train, df$Sampled, df$Cluster, df$Count))
+      colnames(df_train_counts_full) <- c("Train", "Sampled", "Cluster", "Count")
+    }
     
     # Optional: reorder to original order
     df <- df[order(as.numeric(row.names(df))), ]
@@ -133,6 +137,51 @@ plot_individual <- function(df_paths, min_count, num_bins)
   df_all['Query'][df_all['Test'] == TRUE & df_all['Train'] == TRUE] <- "Testing vs. Training"
   df_all['Query'][df_all['Smitis'] == TRUE & df_all['Train'] == TRUE ] <- "S. mitis vs. Training"
   df_all['Query'][df_all['Smitis'] == TRUE & df_all['Train'] != TRUE] <- "S. mitis"
+  
+  # update counts to those from full training data
+  idx <- match(
+    paste(df_all$Cluster, df_all$Sampled),
+    paste(df_train_counts_full$Cluster, df_train_counts_full$Sampled)
+  )
+  matched <- !is.na(idx)
+  df_all$Count[matched] <- df_train_counts_full$Count[idx[matched]]
+  
+  # update counts to those from sampled training data
+  idx <- match(
+    paste(df_all$Cluster, df_all$Sampled),
+    paste(df_train_counts_sampled$Cluster, df_train_counts_sampled$Sampled)
+  )
+  matched <- !is.na(idx)
+  df_all$Count[matched] <- df_train_counts_sampled$Count[idx[matched]]
+  df_all$Count <- as.numeric(df_all$Count)
+  
+  # update to rerun proportion analysis based on full counts
+  df_all <- df_all %>%
+    group_by(Query, Data) %>%
+    mutate(
+      max_counts = max(Count, na.rm = TRUE),
+      Proportion = Count / max_counts,
+      bin_number = ntile(Proportion, num_bins)
+    ) %>%
+    ungroup() %>%
+    mutate(
+      bin_number = factor(bin_number)
+    )
+  
+  # Define the bin boundaries on the proportion scale
+  breaks_quantile <- seq(0, 1, length.out = num_bins + 1)
+  bins <- cut(breaks_quantile, breaks = breaks_quantile, include.lowest = TRUE, right = TRUE)
+  
+  bin_map <- data.frame(
+    bin_number = factor(seq_len(num_bins)),
+    bin = levels(bins),
+    bin_start = head(breaks_quantile, -1),
+    bin_end = tail(breaks_quantile, -1)
+  )
+  
+  # Merge bin boundaries back into the data
+  df_all <- df_all %>%
+    left_join(bin_map, by = "bin_number")
   
   df_all
 }
@@ -176,9 +225,8 @@ plot_all <- function(df, outpref, top_K) {
       scale_fill_npg() +
       theme(axis.text.x = element_text(size = 12), axis.text.y = element_text(size = 12), axis.title=element_text(size=16,face="bold"), legend.title=element_text(size=16,face="bold"), legend.text=element_text(size=14), strip.text = element_text(size=12), legend.position = "none") +
       xlab("Tool") + ylab("Silhouette score") +
-      stat_summary(fun=mean, colour="black", geom="text", show_guide = FALSE, vjust=-1, size = 5, aes( label=round(after_stat(y), digits=2))) + 
-      stat_summary(fun.y=mean, colour="black", geom="point", shape=18, size=2, show_guide = FALSE) + 
-      #stat_compare_means(aes(group = Cluster), paired = TRUE, size = 5.5, label.x = 1.25, label.y = 0.75, method = "wilcox.test")
+      stat_summary(fun=mean, colour="black", geom="text", show.legend = FALSE, vjust=-1, size = 5, aes( label=round(after_stat(y), digits=2))) + 
+      stat_summary(fun=mean, colour="black", geom="point", shape=18, size=2, show.legend = FALSE) + 
       geom_text(
         data = test.stats,
         aes(
@@ -195,7 +243,7 @@ plot_all <- function(df, outpref, top_K) {
     ggsave(file=paste0(outpref, ".png"), plot=p, height = 6, width = 10)
     
     # plot silhouette vs. frequency
-    p <- ggplot(df, aes(x = Count, y = Silhouette_width, colour = Classifier, group= Classifier)) + geom_point(alpha=0.3) +
+    p.freq <- ggplot(df, aes(x = Count, y = Silhouette_width, colour = Classifier, group= Classifier)) + geom_point(alpha=0.3) +
       geom_smooth(method = "gam") +
       theme_light() +
       facet_grid(Data ~ .) +
@@ -203,9 +251,10 @@ plot_all <- function(df, outpref, top_K) {
       scale_x_log10() +
       theme(axis.text.x = element_text(size = 12), axis.text.y = element_text(size = 12), axis.title=element_text(size=16,face="bold"), legend.title=element_text(size=16,face="bold"), legend.text=element_text(size=14), strip.text = element_text(size=12),) +
       xlab("Cluster size") + ylab("Silhouette score") 
-    p
-    ggsave(file=paste0(outpref, "_frequency.png"), plot=p, height = 6, width = 10)
+    p.freq
+    ggsave(file=paste0(outpref, "_frequency.png"), plot=p.freq, height = 6, width = 10)
     
+    p.freq
 }
 
 plot_results <- function(df_paths_panbart_silhouette, df_paths_sketchlib_silhouette, outpref, min_count, num_bins)
@@ -220,22 +269,28 @@ plot_results <- function(df_paths_panbart_silhouette, df_paths_sketchlib_silhoue
   # training only, subset
   subset_df <- subset(merged_df, Query == "Training" & Unknown_token == "With unknown" & Subset == "Subset lineages")
   outpref_plot <- paste0(outpref, "_training_subset_lineages")
-  plot_all(subset_df, outpref_plot, 0)
+  p.freq.train.subset <- plot_all(subset_df, outpref_plot, 0)
   
   # training only, all
   subset_df <- subset(merged_df, Query == "Training" & Unknown_token == "With unknown" & Subset != "Subset lineages")
   outpref_plot <- paste0(outpref, "_training_all_lineages")
-  plot_all(subset_df, outpref_plot, 0)
+  p.freq.train.all <- plot_all(subset_df, outpref_plot, 0)
   
   # testing only, subset
   subset_df <- subset(merged_df, Query == "Testing" & Unknown_token == "With unknown" & Subset == "Subset lineages")
   outpref_plot <- paste0(outpref, "_testing_subset_lineages")
-  plot_all(subset_df, outpref_plot, 0)
+  p.freq.test.subset <- plot_all(subset_df, outpref_plot, 0)
   
   # testing only, all
   subset_df <- subset(merged_df, Query == "Testing" & Unknown_token == "With unknown" & Subset != "Subset lineages")
   outpref_plot <- paste0(outpref, "_testing_all_lineages")
-  plot_all(subset_df, outpref_plot, 0)
+  p.freq.test.all <- plot_all(subset_df, outpref_plot, 0)
+  
+  # merge all frequency plots together
+  p.all.freq <- ggarrange(p.freq.train.subset, p.freq.train.all, p.freq.test.subset, p.freq.test.all, 
+                          labels = "AUTO", ncol = 1, common.legend = TRUE, legend = "right")
+  p.all.freq
+  ggsave(file=paste0(outpref, "_all_frequency.png"), plot=p.all.freq, height = 18, width = 10)
   
   # held only, subset TODO, looks wrong
   subset_df <- subset(merged_df, Query == "Novel" & Unknown_token == "With unknown" & Subset == "Subset lineages")
@@ -248,20 +303,14 @@ plot_results <- function(df_paths_panbart_silhouette, df_paths_sketchlib_silhoue
   plot_all(subset_df, outpref_plot, 0)
 }
 
-option_list <- list(
-  make_option("--indir", type="character", help="Input directory containing panbart/ and sketchlib/ subdirectories with *_silhouette.tsv files."),
-  make_option("--outpref", type="character", default="output", help="Output prefix for saved plots. Default = 'output'"),
-  make_option("--min-count", type="integer", default=1, help="Minimum cluster count to include. Default = 1"),
-  make_option("--num-bins", type="integer", default=3, help="Number of bins for proportion histogram. Default = 3")
-)
-opt <- parse_args(OptionParser(option_list=option_list))
+species <- opt$species
+indir <- file.path(opt$indir, species)
+outpref <- opt$outpref
 
-indir <- opt$indir
+df_paths_panbart_silhouette <- list.files(path = file.path(indir, "panbart"), pattern = "_silhouette\\.tsv$", full.names = TRUE)
+df_paths_sketchlib_silhouette <- list.files(path = file.path(indir, "sketchlib"), pattern = "_silhouette\\.tsv$", full.names = TRUE)
 min_count <- opt$`min-count`
 num_bins <- opt$`num-bins`
-
-df_paths_panbart_silhouette <- list.files(path = paste0(indir, "/panbart/"), pattern = "*_silhouette.tsv", full.names = TRUE)
-df_paths_sketchlib_silhouette <- list.files(path = paste0(indir, "/sketchlib/"), pattern = "*_silhouette.tsv", full.names = TRUE)
-outpref <- opt$outpref
+dir.create(dirname(outpref), recursive = TRUE, showWarnings = FALSE)
 
 plot_results(df_paths_panbart_silhouette, df_paths_sketchlib_silhouette, outpref, min_count, num_bins)

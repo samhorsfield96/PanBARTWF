@@ -6,18 +6,18 @@ library(ggrepel)
 library(optparse)
 
 option_list <- list(
-  make_option("--indir", type="character", default="spyderpick/", help="Directory containing Spyderpick outlier .tsv files. Default = 'spyderpick/'"),
-  make_option("--outdir", type="character", default="figures/spyderpick/", help="Output directory for saved plots. Default = 'figures/spyderpick/'"),
-  make_option("--outpref", type="character", default="output", help="Output filename prefix. Default = 'output'")
+  make_option("--indir", type = "character", help = "Directory containing Spyderpick outlier files."),
+  make_option("--outdir", type = "character", help = "Directory for generated plots.")
 )
-opt <- parse_args(OptionParser(option_list=option_list))
+opt <- parse_args(OptionParser(option_list = option_list))
 
 indir <- opt$indir
 outdir <- opt$outdir
-direct_extreme <- Sys.glob(paste(indir, "*_direct_extreme_outliers.tsv", sep = ""))
-direct_normal <- Sys.glob(paste(indir, "*_direct_outliers.tsv", sep = ""))
-indirect_extreme <- Sys.glob(paste(indir, "*_indirect_extreme_outliers.tsv", sep = ""))
-indirect_normal <- Sys.glob(paste(indir, "*_indirect_outliers.tsv", sep = ""))
+dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
+direct_extreme <- list.files(indir, pattern = "_direct_extreme_outliers\\.tsv$", full.names = TRUE)
+direct_normal <- list.files(indir, pattern = "_direct_outliers\\.tsv$", full.names = TRUE)
+indirect_extreme <- list.files(indir, pattern = "_indirect_extreme_outliers\\.tsv$", full.names = TRUE)
+indirect_normal <- list.files(indir, pattern = "_indirect_outliers\\.tsv$", full.names = TRUE)
 
 direct_extreme_df <- read.csv(direct_extreme, header = TRUE, sep = "\t")
 direct_extreme_df$Direct <- TRUE
@@ -46,9 +46,6 @@ total_df$Direct[total_df$Direct == FALSE] <- "Indirect"
 total_df$Extreme[total_df$Extreme == TRUE] <- "Extreme outlier"
 total_df$Extreme[total_df$Extreme == FALSE] <- "Outlier"
 
-# hypothetical proteins
-#hypothetical.label <- "hypothetical"
-#unnamed.label <- "unnamed"
 hypothetical.label <- "?"
 unnamed.label <- "?"
 NA.label <- "?"
@@ -60,7 +57,6 @@ total_df$Gene[total_df$Gene == "NA" | is.na(total_df$Gene)] <- NA.label
 total_df$Gene.1[total_df$Gene.1 == "NA" | is.na(total_df$Gene.1)] <- NA.label
 total_df$gene.pairs <- paste0(total_df$Gene, "~", total_df$Gene.1)
 
-# filter out unpaired labelled genes
 to.remove <- c(hypothetical.label, unnamed.label, "NA")
 total_df$gene.pairs[total_df$Gene %in% to.remove | total_df$Gene.1 %in% to.remove] <- ""
 
@@ -73,10 +69,8 @@ outlier.threshold <- 0.39962337500000006
 pos <- position_jitter(width = 0.2)
 
 p.all <- ggplot(total_df, aes(x = Direct, y = MI, colour = Extreme)) +
-  #geom_boxplot(outlier.shape = NA) + 
   geom_hline(yintercept = extreme.outlier.threshold, colour = "black", linetype = "dashed") +
   geom_jitter(size=2, alpha=0.9, position = position_jitter(seed = 1)) +
-  #facet_grid(Direct~Extreme) +
   guides(colour=guide_legend(title="Outlier type")) +
   theme_light() +
   theme(axis.text.x = element_text(size = 12), axis.text.y = element_text(size = 12), axis.title=element_text(size=14,face="bold"), strip.text.y = element_text(size = 14), 
@@ -94,5 +88,5 @@ p.all <- ggplot(total_df, aes(x = Direct, y = MI, colour = Extreme)) +
   labs(x = "Connection Type", y = "Mutual Information (MI)") 
 p.all
 
-ggsave(file=paste0(outdir, opt$outpref, "_spyderpick_direct_only_MI.png"), plot=p.all, height = 6, width = 8)
-ggsave(file=paste0(outdir, opt$outpref, "_spyderpick_direct_only_MI.svg"), plot=p.all, height = 6, width = 8)
+ggsave(file=file.path(outdir, "E_coli_spyderpick_direct_only_MI_None.png"), plot=p.all, height = 6, width = 8)
+ggsave(file=file.path(outdir, "E_coli_spyderpick_direct_only_MI_None.svg"), plot=p.all, height = 6, width = 8)

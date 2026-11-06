@@ -13,8 +13,40 @@ Rscript gene_freq_to_pseudolikelihood.R --root <root_dir> --outdir <out_dir> --s
 |---|---|---|---|
 | `--root` | Yes | — | Root input directory containing one subdirectory per species |
 | `--outdir` | Yes | — | Output directory for saved plots |
-| `--species` | Yes | — | Comma-separated list of species subdirectory names (e.g. `E_coli,S_pneumoniae`) |
-| `--species-names` | Yes | — | Comma-separated list of species display names (e.g. `"E. coli,S. pneumoniae"`) |
+| `--species` | Yes | — | Comma-separated species subdirectory names (e.g. `E_coli,S_pneumoniae`) |
+| `--species-names` | Yes | — | Comma-separated species display names (e.g. `"E. coli,S. pneumoniae"`) |
+
+---
+
+### plot_attention_summary.R
+
+Plot attention contributions for the most frequent annotated genes, split by attention type, layer, and head.
+
+**Usage:**
+```
+Rscript plot_attention_summary.R --infile <attention_summary.csv> --outdir <out_dir/>
+```
+
+| Argument | Required | Default | Description |
+|---|---|---|---|
+| `--infile` | Yes | — | Path to the attention summary CSV file |
+| `--outdir` | Yes | — | Directory for generated plots |
+
+---
+
+### plot_unknown_count_dist.R
+
+Plot distributions of unknown-token counts across species, dataset sizes, and lineage subsets.
+
+**Usage:**
+```
+Rscript plot_unknown_count_dist.R --indir <unknown_counts_dir/> --outdir <out_dir/>
+```
+
+| Argument | Required | Default | Description |
+|---|---|---|---|
+| `--indir` | Yes | — | Root directory containing `unknown_tokens_counts.csv` files |
+| `--outdir` | Yes | — | Directory for generated plots |
 
 ---
 
@@ -129,7 +161,7 @@ Rscript embeddings.R --indir <embeddings_dir/> --outdir <out_dir/> [--species <s
 
 | Argument | Required | Default | Description |
 |---|---|---|---|
-| `--indir` | Yes | — | Input directory containing species subdirectories, each with `panbart/` and `sketchlib/` subdirectories |
+| `--indir` | Yes | — | Input directory containing species subdirectories, each with classifier folders such as `panbart/`, `sketchlib/`, and `bacformer/` |
 | `--outdir` | Yes | — | Output directory for saved plots |
 | `--species` | No | `S_pneumoniae,E_coli` | Comma-separated species subdirectory names |
 
@@ -141,15 +173,16 @@ Compare silhouette score distributions between PanBART and Sketchlib embeddings 
 
 **Usage:**
 ```
-Rscript embeddings_compares_silhouettes.R --indir <embeddings_dir/> [--outpref <prefix>] [--min-count <n>] [--num-bins <n>]
+Rscript embeddings_compares_silhouettes.R --indir <embeddings_dir/> [--species <species>] [--outpref <prefix>] [--min-count <n>] [--num-bins <n>]
 ```
 
 | Argument | Required | Default | Description |
 |---|---|---|---|
-| `--indir` | Yes | — | Input directory containing `panbart/` and `sketchlib/` subdirectories with `*_silhouette.tsv` files |
+| `--indir` | Yes | — | Parent directory containing a species subdirectory with `panbart/` and `sketchlib/` subdirectories |
+| `--species` | No | `E_coli` | Species subdirectory name |
 | `--outpref` | No | `output` | Output prefix for saved plots |
 | `--min-count` | No | `1` | Minimum cluster count to include |
-| `--num-bins` | No | `3` | Number of bins for proportion histogram |
+| `--num-bins` | No | `5` | Number of bins for proportion summaries |
 
 ---
 
@@ -194,13 +227,13 @@ Plot training loss, precision, recall, and F1 curves across multiple training lo
 
 **Usage:**
 ```
-Rscript plot_loss_logs.R --infiles <file1.txt,file2.txt,...> [--outpref <prefix>]
+Rscript plot_loss_logs.R --indir <logs_dir/> --outdir <out_dir/>
 ```
 
 | Argument | Required | Default | Description |
 |---|---|---|---|
-| `--infiles` | Yes | — | Comma-separated list of parsed training log `.txt` files |
-| `--outpref` | No | `output` | Output prefix for saved plots |
+| `--indir` | Yes | — | Directory containing `Pneumo/` and `Ecoli/` subdirectories of parsed training logs |
+| `--outdir` | Yes | — | Directory for generated plots |
 
 ---
 
@@ -210,20 +243,19 @@ Visualise SpydrPick mutual information outliers (direct/indirect, extreme/normal
 
 **Usage:**
 ```
-Rscript plot_spyderpick.R [--indir <spyderpick/>] [--outdir <figures/spyderpick/>] [--outpref <prefix>]
+Rscript plot_spyderpick.R --indir <spyderpick_dir/> --outdir <out_dir/>
 ```
 
 | Argument | Required | Default | Description |
 |---|---|---|---|
-| `--indir` | No | `spyderpick/` | Directory containing Spyderpick outlier `.tsv` files |
-| `--outdir` | No | `figures/spyderpick/` | Output directory for saved plots |
-| `--outpref` | No | `output` | Output filename prefix |
+| `--indir` | Yes | — | Directory containing Spyderpick outlier `.tsv` files |
+| `--outdir` | Yes | — | Output directory for saved plots |
 
 ---
 
 ### plot_strain_assignments_overall.R
 
-Plot overall balanced accuracy across K values for strain assignment, comparing PanBART and Sketchlib across species and lineage subsets.
+Plot balanced per-cluster assignment accuracy across K values, comparing classifiers across species and lineage subsets.
 
 **Usage:**
 ```
@@ -232,7 +264,7 @@ Rscript plot_strain_assignments_overall.R --indir <assignments_dir/> --outdir <o
 
 | Argument | Required | Default | Description |
 |---|---|---|---|
-| `--indir` | Yes | — | Input directory containing species subdirectories with `*_overall_accuracy.tsv` files |
+| `--indir` | Yes | — | Root directory containing species subdirectories with per-cluster assignment results |
 | `--outdir` | Yes | — | Output directory for saved plots |
 | `--species` | No | `S_pneumoniae,E_coli` | Comma-separated species subdirectory names |
 
@@ -244,12 +276,13 @@ Plot per-cluster accuracy for strain assignment comparing PanBART and Sketchlib,
 
 **Usage:**
 ```
-Rscript plot_strain_assignments_per_cluster.R --indir <assignments_dir/> [--outpref <prefix>]
+Rscript plot_strain_assignments_per_cluster.R --indir <assignments_dir/> [--species <species>] [--outpref <prefix>]
 ```
 
 | Argument | Required | Default | Description |
 |---|---|---|---|
-| `--indir` | Yes | — | Input directory containing `panbart/` and `sketchlib/` subdirectories with `*per_label_accuracy.tsv` files |
+| `--indir` | Yes | — | Root directory containing a species subdirectory with `panbart/` and `sketchlib/` subdirectories |
+| `--species` | No | `E_coli` | Species subdirectory name |
 | `--outpref` | No | `output` | Output prefix for saved plots |
 
 ---
@@ -260,13 +293,14 @@ Generate boxplot comparisons of log pseudolikelihood across query types (Trainin
 
 **Usage:**
 ```
-Rscript pseudolikelihood.R --indir <pseudolikelihood_dir/> [--outpref <prefix>]
+Rscript pseudolikelihood.R --indir <pseudolikelihood_dir/> --outdir <out_dir/> [--species <species>]
 ```
 
 | Argument | Required | Default | Description |
 |---|---|---|---|
-| `--indir` | Yes | — | Input directory containing `*_pseudolikelihood.txt` files |
-| `--outpref` | No | `output` | Output prefix for saved plots |
+| `--indir` | Yes | — | Root directory containing species subdirectories of `*_pseudolikelihood.txt` files |
+| `--outdir` | Yes | — | Output root directory for generated plots |
+| `--species` | No | `S_pneumoniae` | Species subdirectory name |
 
 ---
 
@@ -276,16 +310,13 @@ Analyse token likelihood and positional accuracy for conditional insertion exper
 
 **Usage:**
 ```
-Rscript token_conditional_likelihood_insertion.R --labels <"Label1,Label2,..."> [--indir <dir/>] [--outdir <dir/>] [--outpref <prefix>] [--plot-width <n>]
+Rscript token_conditional_likelihood_insertion.R --indir <dir/> --outdir <out_dir/>
 ```
 
 | Argument | Required | Default | Description |
 |---|---|---|---|
-| `--labels` | Yes | — | Comma-separated list of labels corresponding to input files in alphabetical order |
-| `--indir` | No | `token_conditonal_likelhoods/` | Directory containing `*locus_pseudolikelihood.txt`, `*_file_indices.txt`, and `*_absolute_token_locations.csv` files |
-| `--outdir` | No | `figures/token_conditonal_likelhoods/` | Output directory for saved plots |
-| `--outpref` | No | `output` | Output filename prefix |
-| `--plot-width` | No | `100` | Width in tokens around highest scoring location |
+| `--indir` | Yes | — | Directory containing `*locus_pseudolikelihood.txt`, `*_file_indices.txt`, and `*_absolute_token_locations.csv` files |
+| `--outdir` | Yes | — | Output directory for saved plots |
 
 ---
 
@@ -295,12 +326,10 @@ Generate boxplot comparisons of maximum token likelihood across lineages and bla
 
 **Usage:**
 ```
-Rscript token_conditional_likelihoods.R --labels <"Label1,Label2,..."> [--indir <dir/>] [--outdir <dir/>] [--outpref <prefix>]
+Rscript token_conditional_likelihoods.R --indir <dir/> --outdir <out_dir/>
 ```
 
 | Argument | Required | Default | Description |
 |---|---|---|---|
-| `--labels` | Yes | — | Comma-separated list of labels corresponding to input files in alphabetical order |
-| `--indir` | No | `token_conditonal_likelhoods/` | Directory containing `*locus_pseudolikelihood.txt` files |
-| `--outdir` | No | `figures/token_conditonal_likelhoods/` | Output directory for saved plots |
-| `--outpref` | No | `output` | Output filename prefix |
+| `--indir` | Yes | — | Directory containing `*locus_pseudolikelihood.txt` files |
+| `--outdir` | Yes | — | Output directory for saved plots |

@@ -14,6 +14,14 @@ library(pdfCluster)
 library(aricode)
 library(optparse)
 
+option_list <- list(
+  make_option("--indir", type = "character", help = "Input directory containing classifier subdirectories."),
+  make_option("--outdir", type = "character", help = "Directory for generated plots."),
+  make_option("--species", type = "character", default = "S_pneumoniae,E_coli",
+              help = "Comma-separated species subdirectory names.")
+)
+opt <- parse_args(OptionParser(option_list = option_list))
+
 entropy <- function(x) {
   p <- table(x) / length(x)
   -sum(p * log(p))
@@ -94,8 +102,6 @@ plot_individual <- function(df_paths, df_paths_embeddings, df_paths_accuracy, ou
     str_remove("_leiden_.*\\.tsv$")
   key1_species <- ifelse(grepl("E_coli", df_paths), "E_coli", "S_pneumoniae")
   key1 <- paste(key1, key1_species, sep = "_")
-  # key2 <- basename(df_paths_embeddings) |>
-  #   str_remove("_leiden_.*\\.csv$")
   
   key2 <- basename(df_paths_embeddings) |>
     str_remove("_UMAP\\.csv$")
@@ -119,7 +125,7 @@ plot_individual <- function(df_paths, df_paths_embeddings, df_paths_accuracy, ou
     by = "key"
   )
   
-  j <- 10
+  j <- 1
   for (j in 1:nrow(matched))
   {
     row <- matched[j,]
@@ -174,15 +180,11 @@ plot_individual <- function(df_paths, df_paths_embeddings, df_paths_accuracy, ou
       "0" = "gray30"
     )
     
-    #ARI <- adj.rand.index(df.merged$predicted_label_ori, df.merged$true_label)
-    #AMI <- AMI(factor(as.character(df.merged$predicted_label_ori)), factor(as.character(df.merged$true_label)))
     
     df.merged$ARI <- ARI
     df.merged$AMI <- AMI
     
     #npg colours
-    # my_cols <- c(setNames(pal_npg("nrc")(n_top), levels(df$Cluster)[-nlevels(df$Cluster)]),
-    #              "0" = "grey")
     
     p <- ggplot(df.merged, aes(x = UMAP1, y = UMAP2, color = predicted_label)) + geom_point(size=0.01, alpha =0.5) +
       theme_light() +
@@ -201,7 +203,6 @@ plot_individual <- function(df_paths, df_paths_embeddings, df_paths_accuracy, ou
       ) +
       theme(
         panel.background = element_rect(fill = "black"), # plot background
-        #plot.background  = element_rect(fill = "black"), # outer background
         panel.grid.major = element_line(color = "gray40"), # major grid
         panel.grid.minor = element_line(color = "gray20")  # minor grid
       )
@@ -255,33 +256,15 @@ plot_individual <- function(df_paths, df_paths_embeddings, df_paths_accuracy, ou
   df_all
 }
 
-plot_all <- function(df, outpref, plot_height, plot_width, svg=FALSE) {
+plot_all <- function(df, outpref, plot_height, plot_width, point_size, point_alpha, svg=FALSE) {
   # top 10 cluster sizes per dataset  
   n_top <- 10
   
   # # sort columns
-  # top_classes <- df %>%
-  #   group_by(DatasetName) %>%
-  #   count(predicted_label, sort = TRUE) %>%
-  #   top_n(n_top, n) %>%
-  #   pull(predicted_label)
-  # 
-  # df <- df %>%
-  #   group_by(DatasetName) %>%
-  #   mutate(predicted_label = ifelse(predicted_label_ori %in% top_classes, predicted_label, "0"))
   
   # sort columns
-  # top_classes <- df %>%
-  #   count(Cluster, sort = TRUE) %>%
-  #   top_n(10, n) %>%
-  #   pull(Cluster)
   
-  # df <- df %>%
-  #   mutate(Cluster = ifelse(Cluster_ori %in% top_classes, Cluster_ori, "0"))
   
-  # df <- df %>%
-  #   mutate(Cluster = ifelse(Cluster_ori %in% top_classes, Cluster_ori, "0"),
-  #          Cluster = factor(Cluster_ori))
   # Put "0" last instead of first
   df$predicted_label <- fct_relevel(df$predicted_label, "0", after = Inf)
   
@@ -304,7 +287,6 @@ plot_all <- function(df, outpref, plot_height, plot_width, svg=FALSE) {
     left_join(df_ranked, by = c("Data", "Classifier", "Subset", "Species", "predicted_label")) %>%
     mutate(rank = ifelse(is.na(rank), 0, rank))  # non-top clusters get rank 0
   
-  # "0" first = drawn first = appears on bottom
   df <- df %>% arrange(desc(rank == 0), rank)
   
   set3_cols <- brewer.pal(12, "Set3")
@@ -318,23 +300,15 @@ plot_all <- function(df, outpref, plot_height, plot_width, svg=FALSE) {
   )
   
   # Build a named colour vector:
-  # n_top <- nlevels(df$predicted_label) - 1
-  # 
   # # brewer colours
-  # my_cols <- c(
-  #   setNames(brewer.pal(min(12, n_top), "Set3")[1:n_top], levels(df$predicted_label)[-nlevels(df$predicted_label)]),
-  #   "0" = "gray30"
-  # )
   
   # npg colours
-  #my_cols <- c(setNames(pal_npg("nrc")(n_top), levels(df$Cluster)[-nlevels(df$Cluster)]),
-  #             "0" = "grey")
   
   annotations <- df %>% 
     group_by(DatasetName, Classifier) %>%
     summarise(AMI = unique(AMI), ARI = unique(ARI))
   
-  p <- ggplot(df, aes(x = UMAP1, y = UMAP2, color = as.character(rank))) + geom_point(size=0.001, alpha =0.2) +
+  p <- ggplot(df, aes(x = UMAP1, y = UMAP2, color = as.character(rank))) + geom_point(size=point_size, alpha =point_alpha) +
     theme_light() +
     facet_grid(DatasetName ~ Classifier) +
     scale_color_manual(values=rank_cols) +
@@ -354,7 +328,6 @@ plot_all <- function(df, outpref, plot_height, plot_width, svg=FALSE) {
     ) +
     theme(
       panel.background = element_rect(fill = "black"), # plot background
-      #plot.background  = element_rect(fill = "black"), # outer background
       panel.grid.major = element_line(color = "gray40"), # major grid
       panel.grid.minor = element_line(color = "gray20")  # minor grid
     )
@@ -367,148 +340,144 @@ plot_all <- function(df, outpref, plot_height, plot_width, svg=FALSE) {
   }
 }
 
-plot_results <- function(df_paths_panbart, df_paths_sketchlib, df_paths_panbart_embeddings, df_paths_sketchlib_embeddings, df_paths_panbart_accuracy, df_paths_sketchlib_accuracy, outpref)
+plot_results <- function(df_paths_panbart, df_paths_sketchlib, df_paths_panbart_embeddings, df_paths_sketchlib_embeddings, df_paths_panbart_accuracy, df_paths_sketchlib_accuracy, 
+                         df_paths_bacformer, df_paths_bacformer_complete, df_paths_bacformer_embeddings, df_paths_bacformer_complete_embeddings, df_paths_bacformer_accuracy, df_paths_bacformer_complete_accuracy, outpref)
 {
   df_all_panbart <- plot_individual(df_paths_panbart, df_paths_panbart_embeddings, df_paths_panbart_accuracy, paste0(outpref, "panbart"))
   df_all_panbart$Classifier <- "PanBART"
   df_all_sketchlib <- plot_individual(df_paths_sketchlib, df_paths_sketchlib_embeddings, df_paths_sketchlib_accuracy, paste0(outpref, "sketchlib"))
   df_all_sketchlib$Classifier <- "Sketchlib"
+  df_all_bacformer <- plot_individual(df_paths_bacformer, df_paths_bacformer_embeddings, df_paths_bacformer_accuracy, paste0(outpref, "bacformer"))
+  df_all_bacformer$Classifier <- "Bacformer-L (MAG)"
+  df_all_bacformer_complete <- plot_individual(df_paths_bacformer_complete, df_paths_bacformer_complete_embeddings, df_paths_bacformer_complete_accuracy, paste0(outpref, "bacformer_complete"))
+  df_all_bacformer_complete$Classifier <- "Bacformer-L (Complete)"
   
-  merged_df <- rbind(df_all_sketchlib, df_all_panbart)
+  merged_df <- rbind(df_all_sketchlib, df_all_panbart, df_all_bacformer, df_all_bacformer_complete)
+  merged_df$Classifier <- factor(merged_df$Classifier, levels = c("PanBART", "Sketchlib", "Bacformer-L (MAG)", "Bacformer-L (Complete)"))
   
   # training only, subset - fine
   subset_df <- subset(merged_df, Query == "Training" & Unknown_token == "With unknown" & Subset == "Subset lineages")
   outpref_plot <- paste0(outpref, "leiden_training_subset_lineages")
-  plot_all(subset_df, outpref_plot, 14, 10)
+  plot_all(subset_df, outpref_plot, 14, 10, 0.5, 0.2)
   
   # # training only, all, 100% data
-  # subset_df <- subset(merged_df, Query == "Training" & Unknown_token == "With unknown" & Subset != "Subset lineages" & Data == "100% Data")
-  # outpref_plot <- paste0(outpref, "leiden_training_all_lineages_1.0_data")
-  # plot_all(subset_df, outpref_plot)
-  # 
   # training only, all - fine
   subset_df <- subset(merged_df, Query == "Training" & Unknown_token == "With unknown" & Subset != "Subset lineages")
   outpref_plot <- paste0(outpref, "leiden_training_all_lineages")
-  plot_all(subset_df, outpref_plot, 14, 10)
+  plot_all(subset_df, outpref_plot, 14, 16, 0.5, 0.2)
   
   # testing only, subset - fine
   subset_df <- subset(merged_df, Query == "Testing" & Unknown_token == "With unknown" & Subset == "Subset lineages")
   outpref_plot <- paste0(outpref, "leiden_testing_subset_lineages")
-  plot_all(subset_df, outpref_plot, 14, 10)
+  plot_all(subset_df, outpref_plot, 14, 10, 0.5, 0.2)
   
   # testing only, all - fine
   subset_df <- subset(merged_df, Query == "Testing" & Unknown_token == "With unknown" & Subset != "Subset lineages")
   outpref_plot <- paste0(outpref, "leiden_testing_all_lineages")
-  plot_all(subset_df, outpref_plot, 14, 10)
+  plot_all(subset_df, outpref_plot, 14, 10, 0.5, 0.2)
   
   # held-out only, with unknown
   subset_df <- subset(merged_df, Query == "Novel" & Unknown_token == "With unknown" & Subset == "Subset lineages")
   outpref_plot <- paste0(outpref, "leiden_novel_subset_lineages_with_unknown")
-  plot_all(subset_df, outpref_plot, 14, 10)
+  plot_all(subset_df, outpref_plot, 14, 10, 0.5, 0.2)
   
-  # held only, without unknown
-  # subset_df <- subset(merged_df, (Query == "Novel" & Unknown_token != "With unknown" & Subset == "Subset lineages") | (Query == "Novel" & Classifier == "Sketchlib" & Subset == "Subset lineages"))
-  # outpref_plot <- paste0(outpref, "leiden_novel_subset_lineages_without_unknown")
-  # plot_all(subset_df, outpref_plot)
+  #held only, without unknown
+  subset_df <- subset(merged_df, (Query == "Novel" & Unknown_token != "With unknown" & Subset == "Subset lineages") | (Query == "Novel" & Classifier == "Sketchlib" & Subset == "Subset lineages"))
+  outpref_plot <- paste0(outpref, "leiden_novel_subset_lineages_without_unknown")
+  plot_all(subset_df, outpref_plot, 14, 10, 0.5, 0.2)
 }
-
-option_list <- list(
-  make_option("--indir", type="character", help="Input directory containing panbart/ and sketchlib/ subdirectories with species subdirectories."),
-  make_option("--outdir", type="character", help="Output directory for saved plots."),
-  make_option("--species", type="character", default="S_pneumoniae,E_coli", help="Comma-separated species subdirectory names. Default = 'S_pneumoniae,E_coli'")
-)
-opt <- parse_args(OptionParser(option_list=option_list))
 
 indir <- opt$indir
 outdir <- opt$outdir
-species_list <- strsplit(opt$species, ",")[[1]]
+species_list <- strsplit(opt$species, ",", fixed = TRUE)[[1]]
+dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 
-
-outpref <- outdir
-
-# # get highest scoring ARI with K, leiden resolution
-# j <- 1
-# for (j in 1:length(df_paths_panbart))
-# {
-#   filename <- df_paths_panbart[j]
-#   base <- gsub(indir, "", filename)
-#   df <- read.csv(filename, sep="\t")
-#   max.row <- df[which.max(df$AMI), ]
-#   
-#   max.row$file <- base
-#   if (j == 1)
-#   {
-#     total.df <- max.row
-#   } else {
-#     total.df <- rbind(total.df, max.row)
-#   }
-# }
-# 
-# for (j in 1:length(df_paths_sketchlib))
-# {
-#   filename <- df_paths_sketchlib[j]
-#   base <- gsub(indir, "", filename)
-#   df <- read.csv(filename, sep="\t")
-#   max.row <- df[which.max(df$AMI), ]
-#   
-#   max.row$file <- base
-#   
-#   total.df <- rbind(total.df, max.row)
-# }
-
-# df_paths_panbart <- list.files(path = paste0(indir, "panbart/", species), pattern = "*_true.tsv", full.names = TRUE)
-# df_paths_sketchlib <- list.files(path = paste0(indir, "sketchlib/", species), pattern = "*_true.tsv", full.names = TRUE)
-# df_paths_panbart_embeddings <- list.files(path = paste0(indir, "panbart/", species, "/embeddings"), pattern = "*_UMAP.csv", full.names = TRUE)
-# df_paths_sketchlib_embeddings <- list.files(path = paste0(indir, "sketchlib/", species, "/embeddings"), pattern = "*_UMAP.csv", full.names = TRUE)
-#df_paths_panbart_accuracy <- list.files(path = paste0(indir, "panbart/", species), pattern = "*_per_iter_accuracy.tsv", full.names = TRUE)
-#df_paths_sketchlib_accuracy <- list.files(path = paste0(indir, "sketchlib/", species), pattern = "*_per_iter_accuracy.tsv", full.names = TRUE)
+outpref <- paste0(outdir, .Platform$file.sep)
 
 df_paths_panbart <- unlist(lapply(species_list, function(sp) {
   list.files(
-    path = paste0(indir, "panbart/", sp),
+    path = file.path(indir, "panbart", sp),
     pattern = "*_true.tsv",
     full.names = TRUE
   )
 }))
 df_paths_sketchlib <- unlist(lapply(species_list, function(sp) {
   list.files(
-    path = paste0(indir, "sketchlib/", sp),
+    path = file.path(indir, "sketchlib", sp),
+    pattern = "*_true.tsv",
+    full.names = TRUE
+  )
+}))
+df_paths_bacformer <- unlist(lapply(species_list, function(sp) {
+  list.files(
+    path = file.path(indir, "bacformer", sp),
+    pattern = "*_true.tsv",
+    full.names = TRUE
+  )
+}))
+df_paths_bacformer_complete <- unlist(lapply(species_list, function(sp) {
+  list.files(
+    path = file.path(indir, "bacformer_complete", sp),
     pattern = "*_true.tsv",
     full.names = TRUE
   )
 }))
 df_paths_panbart_embeddings <- unlist(lapply(species_list, function(sp) {
   list.files(
-    path = paste0(indir, "panbart/", sp, "/embeddings"),
+    path = file.path(indir, "panbart", sp, "embeddings"),
     pattern = "*_UMAP.csv",
     full.names = TRUE
   )
 }))
 df_paths_sketchlib_embeddings <- unlist(lapply(species_list, function(sp) {
   list.files(
-    path = paste0(indir, "sketchlib/", sp, "/embeddings"),
+    path = file.path(indir, "sketchlib", sp, "embeddings"),
+    pattern = "*_UMAP.csv",
+    full.names = TRUE
+  )
+}))
+df_paths_bacformer_embeddings <- unlist(lapply(species_list, function(sp) {
+  list.files(
+    path = file.path(indir, "bacformer", sp, "embeddings"),
+    pattern = "*_UMAP.csv",
+    full.names = TRUE
+  )
+}))
+df_paths_bacformer_complete_embeddings <- unlist(lapply(species_list, function(sp) {
+  list.files(
+    path = file.path(indir, "bacformer_complete", sp, "embeddings"),
     pattern = "*_UMAP.csv",
     full.names = TRUE
   )
 }))
 df_paths_panbart_accuracy <- unlist(lapply(species_list, function(sp) {
   list.files(
-    path = paste0(indir, "panbart/", sp),
+    path = file.path(indir, "panbart", sp),
     pattern = "*_per_iter_accuracy.tsv",
     full.names = TRUE
   )
 }))
 df_paths_sketchlib_accuracy <- unlist(lapply(species_list, function(sp) {
   list.files(
-    path = paste0(indir, "sketchlib/", sp),
+    path = file.path(indir, "sketchlib", sp),
+    pattern = "*_per_iter_accuracy.tsv",
+    full.names = TRUE
+  )
+}))
+df_paths_bacformer_accuracy <- unlist(lapply(species_list, function(sp) {
+  list.files(
+    path = file.path(indir, "bacformer", sp),
+    pattern = "*_per_iter_accuracy.tsv",
+    full.names = TRUE
+  )
+}))
+df_paths_bacformer_complete_accuracy <- unlist(lapply(species_list, function(sp) {
+  list.files(
+    path = file.path(indir, "bacformer_complete", sp),
     pattern = "*_per_iter_accuracy.tsv",
     full.names = TRUE
   )
 }))
 
-#TESTING
-df_paths <- df_paths_panbart
-df_paths_embeddings <- df_paths_panbart_embeddings
-df_paths_accuracy <- df_paths_panbart_accuracy
-
-plot_results(df_paths_panbart, df_paths_sketchlib, df_paths_panbart_embeddings, df_paths_sketchlib_embeddings, df_paths_panbart_accuracy, df_paths_sketchlib_accuracy, outpref)
+plot_results(df_paths_panbart, df_paths_sketchlib, df_paths_panbart_embeddings, df_paths_sketchlib_embeddings, df_paths_panbart_accuracy, df_paths_sketchlib_accuracy, 
+             df_paths_bacformer, df_paths_bacformer_complete, df_paths_bacformer_embeddings, df_paths_bacformer_complete_embeddings, df_paths_bacformer_accuracy, df_paths_bacformer_complete_accuracy, outpref)

@@ -6,32 +6,36 @@ library(tidyverse)
 library(optparse)
 
 option_list <- list(
-  make_option("--root", type="character", help="Root input directory containing one subdirectory per species."),
-  make_option("--outdir", type="character", help="Output directory for saved plots."),
-  make_option("--species", type="character", help="Comma-separated list of species directory names (e.g. 'E_coli,S_pneumoniae')."),
-  make_option("--species-names", type="character", help="Comma-separated list of species display names (e.g. 'E. coli,S. pneumoniae').")
+  make_option("--root", type = "character", help = "Root input directory containing species subdirectories."),
+  make_option("--outdir", type = "character", help = "Directory for saved plots."),
+  make_option("--species", type = "character", help = "Comma-separated species subdirectory names."),
+  make_option("--species-names", type = "character", help = "Comma-separated species display names.")
 )
-opt <- parse_args(OptionParser(option_list=option_list))
+opt <- parse_args(OptionParser(option_list = option_list))
 
 root <- opt$root
 outdir <- opt$outdir
-species_list <- strsplit(opt$species, ",")[[1]]
-species_name_list <- strsplit(opt$species_names, ",")[[1]]
+species_list <- strsplit(opt$species, ",", fixed = TRUE)[[1]]
+species_name_list <- strsplit(opt$`species-names`, ",", fixed = TRUE)[[1]]
+if (length(species_list) != length(species_name_list)) {
+  stop("--species and --species-names must contain the same number of values.")
+}
+dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 
 j <- 1
 for (j in 1:length(species_list))
 {
   species <- species_list[[j]]
   species_name <- species_name_list[[j]]
-  indir <- paste0(root, species, "/")
+  indir <- file.path(root, species)
   
   # read in gene frequencies and generate dictionary
   absolute_gene_IDs <- TRUE
   
-  gene_freq_file <- paste0(indir, "train_gene_counts_abs.txt")
+  gene_freq_file <- file.path(indir, "train_gene_counts_abs.txt")
   gene.freq.df <- read.csv(gene_freq_file, header = 1, sep = "\t")
-  pseudolikelihood_file <- paste0(indir, "all_genomes_train_with_unk_per_gene.txt")
-  pseudolikelihood_random_file <- paste0(indir, "all_genomes_train_with_unk_random_per_gene.txt")
+  pseudolikelihood_file <- file.path(indir, "all_genomes_train_with_unk_per_gene.txt")
+  pseudolikelihood_random_file <- file.path(indir, "all_genomes_train_with_unk_random_per_gene.txt")
   pseudolikelihood.df <- read.csv(pseudolikelihood_file, header = 1, sep = "\t")
   pseudolikelihood.random.df <- read.csv(pseudolikelihood_random_file, header = 1, sep = "\t")
   gene.freq.df$Gene_ID <- as.numeric(gene.freq.df$Gene_ID)
@@ -86,23 +90,22 @@ for (j in 1:length(species_list))
 p <- ggplot(all.merged.total, aes(x = Genome_freq, y=Avg_log_pseudolikelihood,)) +
   geom_point(alpha=0.2) +
   facet_grid(Species ~ Type) +
-  #geom_smooth(method="loess", colour="blue", fill = "red") +
   theme_light() +
   labs(x = "Gene Frequency", y = "Gene log pseudolikelihood")
 p
 
-ggsave(file=paste0(outdir, "log_pseudolikelihood_vs_gene_freq_training_scatter.png"), plot=p, height = 6, width = 8)
+ggsave(file=file.path(outdir, "log_pseudolikelihood_vs_gene_freq_training_scatter.png"), plot=p, height = 6, width = 8)
 
 # plot average
 p <- ggplot(all.merged.total, aes(x = Genome_freq, y=Avg_log_pseudolikelihood,)) +
   geom_point(alpha=0.2) +
   facet_grid(Species ~ Type) +
-  geom_smooth(method="loess", colour="blue", fill = "red") +
+  geom_smooth(method="loess", colour="blue", fill = "red", linewidth = 0.5) +
   theme_light() +
   labs(x = "Gene Frequency", y = "Gene log pseudolikelihood")
 p
 
-ggsave(file=paste0(outdir, "log_pseudolikelihood_vs_gene_freq_training_loess.png"), plot=p, height = 6, width = 8)
+ggsave(file=file.path(outdir, "log_pseudolikelihood_vs_gene_freq_training_loess.png"), plot=p, height = 6, width = 8)
 
 
 breaks <- seq(0, 1, by = 0.1)
@@ -114,4 +117,4 @@ p <- ggplot(all.merged.total, aes(x = cut(Genome_freq, breaks = breaks), y=Avg_l
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 p
 
-ggsave(file=paste0(outdir, "log_pseudolikelihood_vs_gene_freq_training_boxplot.png"), plot=p, height = 6, width = 11)
+ggsave(file=file.path(outdir, "log_pseudolikelihood_vs_gene_freq_training_boxplot.png"), plot=p, height = 6, width = 11)

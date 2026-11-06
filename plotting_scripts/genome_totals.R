@@ -2,6 +2,16 @@ library(dplyr)
 library(ggplot2)
 library(optparse)
 
+option_list <- list(
+  make_option("--root", type = "character", help = "Root input directory containing species subdirectories."),
+  make_option("--outdir", type = "character", help = "Directory for generated tables and plots."),
+  make_option("--species", type = "character", default = "E_coli,S_pneumoniae",
+              help = "Comma-separated species subdirectory names."),
+  make_option("--species-names", type = "character", default = "E. coli,S. pneumoniae",
+              help = "Comma-separated species display names.")
+)
+opt <- parse_args(OptionParser(option_list = option_list))
+
 parse_filename <- function(filename) {
   list(
     Sampled = if (grepl("_sampled_", filename)) {
@@ -90,32 +100,29 @@ plot_results <- function(df_paths, outdir, species)
   df_all
 }
 
-option_list <- list(
-  make_option("--root", type="character", help="Root directory containing species subdirectories with *_clusters.txt files."),
-  make_option("--outdir", type="character", help="Output directory for saved plots and tables."),
-  make_option("--species", type="character", default="E_coli,S_pneumoniae", help="Comma-separated species subdirectory names. Default = 'E_coli,S_pneumoniae'"),
-  make_option("--species-names", type="character", default="E. coli,S. pneumoniae", help="Comma-separated species display names. Default = 'E. coli,S. pneumoniae'")
-)
-opt <- parse_args(OptionParser(option_list=option_list))
-
 root <- opt$root
 outdir <- opt$outdir
-species_list <- strsplit(opt$species, ",")[[1]]
-species_names_list <- strsplit(opt$`species-names`, ",")[[1]]
+species_list <- strsplit(opt$species, ",", fixed = TRUE)[[1]]
+species_name_list <- strsplit(opt$`species-names`, ",", fixed = TRUE)[[1]]
+if (length(species_list) != length(species_name_list)) {
+  stop("--species and --species-names must contain the same number of values.")
+}
+dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 
-df_total <- do.call(rbind, Map(function(sp, sp_name) {
-  indir <- paste0(root, sp)
-  df_paths <- list.files(path = indir, pattern = "*_clusters.txt", full.names = TRUE, recursive = TRUE)
-  plot_results(df_paths, outdir, sp_name)
-}, species_list, species_names_list))
+species_results <- lapply(seq_along(species_list), function(i) {
+  indir <- file.path(root, species_list[[i]])
+  df_paths <- list.files(path = indir, pattern = "_clusters\\.txt$", full.names = TRUE, recursive = TRUE)
+  plot_results(df_paths, outdir, species_name_list[[i]])
+})
+df_total <- do.call(rbind, species_results)
 
 df_sum <- df_total %>%
   group_by(Species_model, Type, Data, Lineages) %>%
   summarise(Count = n())
 
-write.csv(df_total, file = paste0(outdir, "sample_ids.csv"), row.names = FALSE)
+write.csv(df_total, file = file.path(outdir, "sample_ids.csv"), row.names = FALSE)
 
-write.csv(df_sum, file = paste0(outdir, "count_summary.csv"), row.names = FALSE)
+write.csv(df_sum, file = file.path(outdir, "count_summary.csv"), row.names = FALSE)
 
 # generate figures showing cluster size distribution
 df_cluster_sum <- df_total %>%
@@ -142,4 +149,4 @@ p <- ggplot(data = df_cluster_sum_subset, aes(x = Count, after_stat(count))) +
   labs(x = "Cluster size", y = "Count") 
 p
 
-ggsave(file=paste0(outdir, "cluster_size_density.png"), plot=p, height = 6, width = 8)
+ggsave(file=file.path(outdir, "cluster_size_density.png"), plot=p, height = 6, width = 8)

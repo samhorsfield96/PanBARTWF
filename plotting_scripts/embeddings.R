@@ -11,6 +11,14 @@ library(tidyr)
 library(dplyr)
 library(optparse)
 
+option_list <- list(
+  make_option("--indir", type = "character", help = "Input directory containing species subdirectories."),
+  make_option("--outdir", type = "character", help = "Directory for generated plots."),
+  make_option("--species", type = "character", default = "S_pneumoniae,E_coli",
+              help = "Comma-separated species subdirectory names.")
+)
+opt <- parse_args(OptionParser(option_list = option_list))
+
 parse_filename <- function(filename) {
   list(
     Sampled = if (grepl("_sampled_", filename)) {
@@ -149,10 +157,6 @@ plot_individual <- function(df_paths, df_paths_silhouette, outpref, method)
       "0" = "gray30"
     )
     
-    #npg colours
-    # my_cols <- c(setNames(pal_npg("nrc")(n_top), levels(df$Cluster)[-nlevels(df$Cluster)]),
-    #              "0" = "grey")
-    
     p <- ggplot(df, aes(x = UMAP1, y = UMAP2, color = Cluster)) + geom_point(size=0.01, alpha =0.5) +
       theme_light() +
       scale_color_manual(values=my_cols) +
@@ -171,7 +175,6 @@ plot_individual <- function(df_paths, df_paths_silhouette, outpref, method)
       ) +
       theme(
         panel.background = element_rect(fill = "black"), # plot background
-        #plot.background  = element_rect(fill = "black"), # outer background
         panel.grid.major = element_line(color = "gray40"), # major grid
         panel.grid.minor = element_line(color = "gray20")  # minor grid
       )
@@ -185,6 +188,7 @@ plot_individual <- function(df_paths, df_paths_silhouette, outpref, method)
     
     species <- df$Species[1]
     
+    dir.create(file.path(outpref, species), recursive = TRUE, showWarnings = FALSE)
     ggsave(file=paste0(outpref, "/", species, "/", species, "_", method, "_", parsed_filename, ".png"), plot=p, height = 6, width = 6)
     
     if (j == 1) {
@@ -229,7 +233,7 @@ plot_individual <- function(df_paths, df_paths_silhouette, outpref, method)
   df_all
 }
 
-plot_all <- function(df, outpref, plot_height, plot_width, svg=FALSE) {
+plot_all <- function(df, outpref, plot_height, plot_width, point_size, point_alpha, svg=FALSE) {
     # top 10 cluster sizes per dataset  
     n_top <- 10
   
@@ -244,9 +248,6 @@ plot_all <- function(df, outpref, plot_height, plot_width, svg=FALSE) {
       group_by(DatasetName) %>%
       mutate(Cluster = ifelse(Cluster_ori %in% top_classes, Cluster_ori, "0"))
     
-    # df <- df %>%
-    #   mutate(Cluster = ifelse(Cluster_ori %in% top_classes, Cluster_ori, "0"),
-    #          Cluster = factor(Cluster_ori))
     # Put "0" last instead of first
     df$Cluster <- fct_relevel(df$Cluster, "0", after = Inf)
     
@@ -266,7 +267,6 @@ plot_all <- function(df, outpref, plot_height, plot_width, svg=FALSE) {
       left_join(df_ranked, by = c("Data", "Classifier", "Subset", "Species", "Cluster")) %>%
       mutate(rank = ifelse(is.na(rank), 0, rank))  # non-top clusters get rank 0
     
-    # "0" first = drawn first = appears on bottom
     df <- df %>% arrange(desc(rank == 0), rank)
     
     set3_cols <- brewer.pal(12, "Set3")
@@ -279,16 +279,6 @@ plot_all <- function(df, outpref, plot_height, plot_width, svg=FALSE) {
       "0" = "gray30"
     )
     
-    # my_cols <- c(
-    #   df %>% 
-    #   setNames(brewer.pal(min(12, n_top), "Set3")[1:n_top], levels(df$Cluster)[-nlevels(df$Cluster)]),
-    #   "0" = "gray30"
-    # )
-    
-    # npg colours
-    #my_cols <- c(setNames(pal_npg("nrc")(n_top), levels(df$Cluster)[-nlevels(df$Cluster)]),
-    #             "0" = "grey")
-    
     silhouette <- df %>% 
       group_by(DatasetName, Classifier) %>%
       summarise(Silhouette_median_top = if (is.na(unique(Silhouette_median_top))) unique(Silhouette_median) else unique(Silhouette_median_top),
@@ -296,7 +286,7 @@ plot_all <- function(df, outpref, plot_height, plot_width, svg=FALSE) {
                 Silhouette_median_all = unique(Silhouette_median), Silhouette_IQR_all = unique(Silhouette_IQR))
     
     
-    p <- ggplot(df, aes(x = UMAP1, y = UMAP2, color = as.character(rank))) + geom_point(size=0.001, alpha =0.2) +
+    p <- ggplot(df, aes(x = UMAP1, y = UMAP2, color = as.character(rank))) + geom_point(size=point_size, alpha =point_alpha) +
       theme_light() +
       facet_grid(DatasetName ~ Classifier) +
       scale_color_manual(values=rank_cols) +
@@ -305,10 +295,8 @@ plot_all <- function(df, outpref, plot_height, plot_width, svg=FALSE) {
         data = silhouette,
         aes(
           x = Inf, y = Inf,
-          label = paste0("Median silhouette = ", round(Silhouette_median_top, 2), "\n",
-                         "IQR silhouette = ", round(Silhouette_IQR_top, 2)),
-                         # "Median silhouette (all) = ", round(Silhouette_median_all, 2), "\n",
-                         # "IQR silhouette (all) = ", round(Silhouette_IQR_all, 2)),
+          label = paste0(          "Median silhouette = ", round(Silhouette_median_top, 2), "\n",
+          "IQR silhouette = ", round(Silhouette_IQR_top, 2)),
         ),
         inherit.aes = FALSE,
         hjust = 1.1, vjust = 1.1,
@@ -318,7 +306,6 @@ plot_all <- function(df, outpref, plot_height, plot_width, svg=FALSE) {
       ) +
       theme(
         panel.background = element_rect(fill = "black"), # plot background
-        #plot.background  = element_rect(fill = "black"), # outer background
         panel.grid.major = element_line(color = "gray40"), # major grid
         panel.grid.minor = element_line(color = "gray20")  # minor grid
       )
@@ -331,118 +318,142 @@ plot_all <- function(df, outpref, plot_height, plot_width, svg=FALSE) {
     }
 }
 
-plot_results <- function(df_paths_panbart, df_paths_sketchlib, df_paths_panbart_silhouette, df_paths_sketchlib_silhouette, outpref)
+plot_results <- function(df_paths_panbart, df_paths_sketchlib, df_paths_panbart_silhouette, df_paths_sketchlib_silhouette, 
+                         df_paths_bacformer, df_paths_bacformer_silhouette, df_paths_bacformer_complete, df_paths_bacformer_complete_silhouette, outpref)
 {
   df_all_panbart <- plot_individual(df_paths_panbart, df_paths_panbart_silhouette, outpref, "panbart")
   df_all_panbart$Classifier <- "PanBART"
   df_all_sketchlib <- plot_individual(df_paths_sketchlib, df_paths_sketchlib_silhouette, outpref, "sketchlib")
   df_all_sketchlib$Classifier <- "Sketchlib"
+  df_all_bacformer <- plot_individual(df_paths_bacformer, df_paths_bacformer_silhouette, outpref, "bacformer")
+  df_all_bacformer$Classifier <- "Bacformer-L (MAG)"
+  df_all_bacformer_complete <- plot_individual(df_paths_bacformer_complete, df_paths_bacformer_complete_silhouette, outpref, "bacformer")
+  df_all_bacformer_complete$Classifier <- "Bacformer-L (Complete)"
   
-  merged_df <- rbind(df_all_sketchlib, df_all_panbart)
+  
+  merged_df <- rbind(df_all_sketchlib, df_all_panbart, df_all_bacformer, df_all_bacformer_complete)
+  merged_df$Classifier <- factor(merged_df$Classifier, levels = c("PanBART", "Sketchlib", "Bacformer-L (MAG)", "Bacformer-L (Complete)"))
   
   # training only, subset - fine
   subset_df <- subset(merged_df, Query == "Training" & Unknown_token == "With unknown" & Subset == "Subset lineages" & Smitis == FALSE)
   outpref_plot <- paste0(outpref, "/training_subset_lineages")
-  plot_all(subset_df, outpref_plot, 14, 10)
+  plot_all(subset_df, outpref_plot, 14, 10, 0.5, 0.2)
   
   # plot 3 training only, all, 100% data - fine
   subset_df <- subset(merged_df, Query == "Training" & Unknown_token == "With unknown" & Subset != "Subset lineages" & Data == "100% Data" & Smitis == FALSE)
   outpref_plot <- paste0(outpref, "/training_all_lineages_100_data")
-  plot_all(subset_df, outpref_plot, 10, 10, svg = TRUE)
+  plot_all(subset_df, outpref_plot, 10, 18, 0.001, 0.2, svg = TRUE)
   
   # training only, all, 10% data - fine
   subset_df <- subset(merged_df, Query == "Training" & Unknown_token == "With unknown" & Subset != "Subset lineages" & Data == "10% Data" & Smitis == FALSE)
   outpref_plot <- paste0(outpref, "/training_all_lineages_10_data")
-  plot_all(subset_df, outpref_plot, 10, 10)
+  plot_all(subset_df, outpref_plot, 10, 10, 0.5, 0.2)
   
   # training only, all - fine
   subset_df <- subset(merged_df, Query == "Training" & Unknown_token == "With unknown" & Subset != "Subset lineages" & Smitis == FALSE)
   outpref_plot <- paste0(outpref, "/training_all_lineages")
-  plot_all(subset_df, outpref_plot, 14, 10)
+  plot_all(subset_df, outpref_plot, 14, 10, 0.001, 0.2)
   
   # testing only, subset - fine
   subset_df <- subset(merged_df, Query == "Testing" & Unknown_token == "With unknown" & Subset == "Subset lineages" & Smitis == FALSE)
   outpref_plot <- paste0(outpref, "/testing_subset_lineages")
-  plot_all(subset_df, outpref_plot, 14, 10)
+  plot_all(subset_df, outpref_plot, 14, 10, 0.5, 0.2)
   
   # testing only, all - fine
   subset_df <- subset(merged_df, Query == "Testing" & Unknown_token == "With unknown" & Subset != "Subset lineages")
   outpref_plot <- paste0(outpref, "/testing_all_lineages")
-  plot_all(subset_df, outpref_plot, 14, 10)
+  plot_all(subset_df, outpref_plot, 14, 10, 0.5, 0.2)
   
   # held-out only, with unknown - fine
   subset_df <- subset(merged_df, Query == "Novel" & Unknown_token == "With unknown" & Subset == "Subset lineages" & Smitis == FALSE)
   outpref_plot <- paste0(outpref, "/novel_subset_lineages_with_unknown")
-  plot_all(subset_df, outpref_plot, 14, 10)
+  plot_all(subset_df, outpref_plot, 14, 10, 0.5, 0.5)
   
   # held only, without unknown - fine
   subset_df <- subset(merged_df, (Query == "Novel" & Smitis == FALSE & Unknown_token != "With unknown" & Subset == "Subset lineages") | (Query == "Novel" & Classifier == "Sketchlib" & Subset == "Subset lineages"))
   outpref_plot <- paste0(outpref, "/novel_subset_lineages_without_unknown")
-  plot_all(subset_df, outpref_plot, 14, 10)
+  plot_all(subset_df, outpref_plot, 14, 10, 0.75, 0.5)
   
   # held out vs training - fine
   subset_df <- subset(merged_df, (Query == "Novel vs. Training" & Unknown_token != "With unknown" & Smitis == FALSE))
   outpref_plot <- paste0(outpref, "novel_v_training_without_unknown")
-  plot_all(subset_df, outpref_plot, 14, 5)
+  plot_all(subset_df, outpref_plot, 14, 5, 0.75, 0.5)
+  
+  # held out vs training - fine
+  subset_df <- subset(merged_df, (Query == "Novel vs. Training" & Unknown_token == "With unknown" & Smitis == FALSE))
+  outpref_plot <- paste0(outpref, "novel_v_training_with_unknown")
+  plot_all(subset_df, outpref_plot, 14, 5, 0.75, 0.5)
   
   # S mitis vs training
   subset_df <- subset(merged_df, (Query == "S. mitis vs. Training" & Unknown_token != "With unknown"))
   outpref_plot <- paste0(outpref, "/mitis_v_training_without_unknown")
-  plot_all(subset_df, outpref_plot, 7, 5)
+  plot_all(subset_df, outpref_plot, 7, 5, 0.001, 0.2)
   
 }
 
-option_list <- list(
-  make_option("--indir", type="character", help="Input directory containing species subdirectories with panbart/ and sketchlib/ subdirectories."),
-  make_option("--outdir", type="character", help="Output directory for saved plots."),
-  make_option("--species", type="character", default="S_pneumoniae,E_coli", help="Comma-separated species subdirectory names. Default = 'S_pneumoniae,E_coli'")
-)
-opt <- parse_args(OptionParser(option_list=option_list))
-
 indir <- opt$indir
 outdir <- opt$outdir
-species_list <- strsplit(opt$species, ",")[[1]]
+species_list <- strsplit(opt$species, ",", fixed = TRUE)[[1]]
+dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 
 df_paths_panbart <- unlist(lapply(species_list, function(sp) {
   list.files(
-    path = paste0(indir, sp, "/panbart/"),
+    path = file.path(indir, sp, "panbart"),
     pattern = "*_UMAP.csv",
     full.names = TRUE
   )
 }))
 df_paths_panbart_silhouette <- unlist(lapply(species_list, function(sp) {
   list.files(
-    path = paste0(indir, sp, "/panbart/"),
+    path = file.path(indir, sp, "panbart"),
     pattern = "*_silhouette.tsv",
     full.names = TRUE
   )
 }))
 df_paths_sketchlib <- unlist(lapply(species_list, function(sp) {
   list.files(
-    path = paste0(indir, sp, "/sketchlib/"),
-    pattern = "*_UMAP.csv",
-    full.names = TRUE
-  )
-}))
-df_paths_sketchlib <- unlist(lapply(species_list, function(sp) {
-  list.files(
-    path = paste0(indir, sp, "/sketchlib/"),
+    path = file.path(indir, sp, "sketchlib"),
     pattern = "*_UMAP.csv",
     full.names = TRUE
   )
 }))
 df_paths_sketchlib_silhouette <- unlist(lapply(species_list, function(sp) {
   list.files(
-    path = paste0(indir, sp, "/sketchlib/"),
+    path = file.path(indir, sp, "sketchlib"),
+    pattern = "*_silhouette.tsv",
+    full.names = TRUE
+  )
+}))
+df_paths_bacformer <- unlist(lapply(species_list, function(sp) {
+  list.files(
+    path = file.path(indir, sp, "bacformer"),
+    pattern = "*_UMAP.csv",
+    full.names = TRUE
+  )
+}))
+df_paths_bacformer_silhouette <- unlist(lapply(species_list, function(sp) {
+  list.files(
+    path = file.path(indir, sp, "bacformer"),
+    pattern = "*_silhouette.tsv",
+    full.names = TRUE
+  )
+}))
+df_paths_bacformer_complete <- unlist(lapply(species_list, function(sp) {
+  list.files(
+    path = file.path(indir, sp, "bacformer_complete"),
+    pattern = "*_UMAP.csv",
+    full.names = TRUE
+  )
+}))
+df_paths_bacformer_complete_silhouette <- unlist(lapply(species_list, function(sp) {
+  list.files(
+    path = file.path(indir, sp, "bacformer_complete"),
     pattern = "*_silhouette.tsv",
     full.names = TRUE
   )
 }))
 
-#df_paths_panbart <- list.files(path = paste0(indir, "/panbart/"), pattern = "*_UMAP.csv", full.names = TRUE)
-#df_paths_panbart_silhouette <- list.files(path = paste0(indir, "/panbart/"), pattern = "*_silhouette.tsv", full.names = TRUE)
-#df_paths_sketchlib <- list.files(path = paste0(indir, "/sketchlib/"), pattern = "*_UMAP.csv", full.names = TRUE)
-#df_paths_sketchlib_silhouette <- list.files(path = paste0(indir, "/sketchlib/"), pattern = "*_silhouette.tsv", full.names = TRUE)
 outpref <- outdir
 
-plot_results(df_paths_panbart, df_paths_sketchlib, df_paths_panbart_silhouette, df_paths_sketchlib_silhouette, outpref)
+plot_results(df_paths_panbart, df_paths_sketchlib, df_paths_panbart_silhouette, df_paths_sketchlib_silhouette, 
+             df_paths_bacformer, df_paths_bacformer_silhouette, df_paths_bacformer_complete, df_paths_bacformer_complete_silhouette, outpref)

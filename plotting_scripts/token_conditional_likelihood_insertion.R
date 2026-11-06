@@ -7,6 +7,12 @@ library(ggbeeswarm)
 library(dplyr)
 library(optparse)
 
+option_list <- list(
+  make_option("--indir", type = "character", help = "Directory containing token pseudolikelihood and position files."),
+  make_option("--outdir", type = "character", help = "Directory for generated plots.")
+)
+opt <- parse_args(OptionParser(option_list = option_list))
+
 colours <- c("ST131 B/C (+ve)" = "#696969", 
              "ST131 B/C (-ve)" = "#E64B35FF",
              "ST131 A (+ve)" = "#4DBBD5FF",
@@ -66,21 +72,12 @@ iqr <- function(x, na.rm = TRUE) {
   (qs[2] - qs[1])
 }
 
-option_list <- list(
-  make_option("--indir", type="character", default="token_conditonal_likelhoods/", help="Directory containing input files. Default = 'token_conditonal_likelhoods/'"),
-  make_option("--outdir", type="character", default="figures/token_conditonal_likelhoods/", help="Output directory for saved plots. Default = 'figures/token_conditonal_likelhoods/'"),
-  make_option("--outpref", type="character", default="output", help="Output filename prefix. Default = 'output'"),
-  make_option("--labels", type="character", help="Comma-separated list of labels."),
-  make_option("--plot-width", type="integer", default=100, help="Width in tokens around highest scoring location. Default = 100")
-)
-opt <- parse_args(OptionParser(option_list=option_list))
-
 indir <- opt$indir
-outdir <- opt$outdir
-outpref <- opt$outpref
-files_like <- Sys.glob(paste(indir,"*locus_pseudolikelihood.txt", sep = ""))
-files_idx <- Sys.glob(paste(indir,"*_file_indices.txt", sep = ""))
-files_position <- Sys.glob(paste(indir,"*_absolute_token_locations.csv", sep = ""))
+outdir <- paste0(opt$outdir, .Platform$file.sep)
+dir.create(opt$outdir, recursive = TRUE, showWarnings = FALSE)
+files_like <- list.files(indir, pattern = "locus_pseudolikelihood\\.txt$", full.names = TRUE)
+files_idx <- list.files(indir, pattern = "_file_indices\\.txt$", full.names = TRUE)
+files_position <- list.files(indir, pattern = "_absolute_token_locations\\.csv$", full.names = TRUE)
 
 df_idx <- data.frame(
   prefix = str_remove(basename(files_idx), "_N10_file_indices\\.txt$") |>
@@ -106,15 +103,12 @@ df_pos <- data.frame(
 merged <- merge(df_idx, df_like, by = "prefix")
 merged <- merge(merged, df_pos, by = "prefix")
 
-#final.df <- data.frame(Lineage = c(), Dataset = c(), GeneID = c(), GenomeID = c(), Quantile25 = c(), Quantile50 = c(), Quantile75 = c(), Min = c(), Max = c(), Mean = c())
 # non pres
-labels <- strsplit(opt$labels, ",")[[1]]
+labels <- c("ST131 B/C (-ve)", "ST131 B/C (+ve)", "ST131 A (-ve)", "ST131 A (+ve)", "ST73 (-ve)", "ST73 (+ve)", "ST95 (-ve)", "ST95 (+ve)")
 #pres
-#labels <- c("ST131 B (-ve)", "ST131 C0 (-ve)", "ST131 C2 (-ve)", "ST131 C2 (+ve)", "ST95 (-ve)", "ST95 (+ve)")
-#labels <- c("ST131 A (-ve)", "ST131 A (+ve)", "ST131 C2 (-ve)", "ST131 C2 (+ve)", "ST73 (-ve)")
 
 # width around highest scoring location to plot
-plot_width <- opt$`plot-width`
+plot_width <- 100
 
 i <- 1
 for (i in 1:nrow(merged))
@@ -188,9 +182,6 @@ final.df$label <- factor(final.df$label, levels = ordering)
 final.df$data_type <- factor(final.df$data_type, levels = c("Training", "Testing"))
 
 # # negative genomes
-# pairwise_comparisons <- list(c("ST131 B/C (+ve)", "ST131 B/C (-ve)"), c("ST131 B/C (+ve)", "ST131 A (+ve)"),
-#                              c("ST131 B/C (+ve)", "ST131 A (-ve)"), c("ST131 B/C (+ve)", "ST95 (+ve)"),
-#                              c("ST131 B/C (+ve)", "ST95 (-ve)"), c("ST131 B/C (+ve)", "ST73 (+ve)"), c("ST131 B/C (+ve)", "ST73 (-ve)"))
 
 
 summary.stats.df <- final.df %>%
@@ -213,11 +204,8 @@ p.all <- ggplot(final.df, aes(x = label, y = Prediction_distance, colour = label
         legend.title=element_text(size=14,face="bold"), legend.text=element_text(size=12), legend.position = "none") +
   scale_color_manual(values = colours) + 
   scale_y_continuous(breaks = function(z) seq(-5000, range(z)[2], by = 1000)) +
-  #stat_summary(fun=mean, colour="black", geom="text", show_guide = FALSE, vjust=-1, size = 5, aes( label=round(after_stat(y), digits=2))) + 
-  #stat_summary(fun.y=mean, colour="black", geom="point", shape=18, size=2, show_guide = FALSE) + 
-  #stat_compare_means(paired = FALSE, size = 5.5, label.x = 1.0, comparisons = pairwise_comparisons, label = "p.signif") +
   labs(y = "True-predicted location distance", x = "Lineage")
 p.all
 
-ggsave(file=paste0(outdir, outpref, "_max_value_position_comparison.png"), plot=p.all, height = 8, width = 7)
-ggsave(file=paste0(outdir, outpref, "_max_value_position_comparison.svg"), plot=p.all, height = 8, width = 10)
+ggsave(file=paste0(outdir, "Ecoli_blaCTX-M_max_value_position_comparison.png"), plot=p.all, height = 8, width = 7)
+ggsave(file=paste0(outdir, "Ecoli_blaCTX-M_max_value_position_comparison.svg"), plot=p.all, height = 8, width = 10)

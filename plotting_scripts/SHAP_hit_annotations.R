@@ -4,6 +4,14 @@ library(tidyr)
 library(dplyr)
 library(optparse)
 
+option_list <- list(
+  make_option("--species", type = "character", help = "Species directory name."),
+  make_option("--indir-pos", type = "character", help = "Directory containing positive annotation files."),
+  make_option("--indir-neg", type = "character", help = "Directory containing negative annotation files."),
+  make_option("--outdir", type = "character", help = "Directory for generated CSV files.")
+)
+opt <- parse_args(OptionParser(option_list = option_list))
+
 parse_filename <- function(filename) {
   list(
     Sampled = if (grepl("sampled", filename)) {
@@ -88,28 +96,20 @@ generate_table <- function(paths) {
   df_all
 }
 
-option_list <- list(
-  make_option("--species", type="character", help="Species name (subdirectory within --indir-pos and --indir-neg)."),
-  make_option("--indir-pos", type="character", help="Directory containing species subdirectory with positive SHAP annotation .tsv files."),
-  make_option("--indir-neg", type="character", help="Directory containing species subdirectory with negative SHAP annotation .tsv files."),
-  make_option("--outdir", type="character", help="Output directory for saved tables.")
-)
-opt <- parse_args(OptionParser(option_list=option_list))
-
 species <- opt$species
 indir_pos <- opt$`indir-pos`
-paths_pos <- list.files(path = paste0(indir_pos, species), pattern = paste0("*hits_annotated_pos.tsv"), full.names = TRUE)
-
 indir_neg <- opt$`indir-neg`
-paths_neg <- list.files(path = paste0(indir_neg, species), pattern = paste0("*hits_annotated_neg.tsv"), full.names = TRUE)
-
 outdir <- opt$outdir
+dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
+
+paths_pos <- list.files(path = file.path(indir_pos, species), pattern = "hits_annotated_pos\\.tsv$", full.names = TRUE)
+paths_neg <- list.files(path = file.path(indir_neg, species), pattern = "hits_annotated_neg\\.tsv$", full.names = TRUE)
 
 pos_df <- generate_table(paths_pos)
 neg_df <- generate_table(paths_neg)
 
-write.csv(pos_df, paste0(outdir, species, "_pos_df_all.csv"))
-write.csv(neg_df, paste0(outdir, species, "_neg_df_all.csv"))
+write.csv(pos_df, file.path(outdir, paste0(species, "_pos_df_all.csv")))
+write.csv(neg_df, file.path(outdir, paste0(species, "_neg_df_all.csv")))
 
 # remove matching tokens
 pos_df_filtered <- pos_df %>%
@@ -118,20 +118,11 @@ pos_df_filtered <- pos_df %>%
 neg_df_filtered <- neg_df %>%
   anti_join(pos_df, by = "Token")
 
-write.csv(pos_df_filtered, paste0(outdir, species, "_pos_df_filtered_all.csv"))
-write.csv(neg_df_filtered, paste0(outdir, species, "_neg_df_filtered_all.csv"))
+write.csv(pos_df_filtered, file.path(outdir, paste0(species, "_pos_df_filtered_all.csv")))
+write.csv(neg_df_filtered, file.path(outdir, paste0(species, "_neg_df_filtered_all.csv")))
 
 # write all individual tables
 {
-  #df_all <- pos_df
-  #type <- "pos"
-  
-  #df_all <- neg_df
-  #type <- "neg"
-  
-  #df_all <- pos_df_filtered
-  #type <- "pos_filtered"
-  
   df_all <- neg_df_filtered
   type <- "neg_filtered"
   
@@ -141,7 +132,7 @@ write.csv(neg_df_filtered, paste0(outdir, species, "_neg_df_filtered_all.csv"))
     summarise(count = n()) %>%   # count rows per group/item combo
     arrange(target_gene, desc(count))
   
-  write.csv(count_df_token_genes, paste0(outdir, species, "_", type, "_count_df_token_genes.csv"))
+  write.csv(count_df_token_genes, file.path(outdir, paste0(species, "_", type, "_count_df_token_genes.csv")))
   
   # genes only
   count_df_genes <- df_all %>%
@@ -149,82 +140,82 @@ write.csv(neg_df_filtered, paste0(outdir, species, "_neg_df_filtered_all.csv"))
     summarise(count = n()) %>%   # count rows per group/item combo
     arrange(target_gene, desc(count))
   
-  write.csv(count_df_genes, paste0(outdir, species, "_", type, "_count_df_genes.csv"))
+  write.csv(count_df_genes, file.path(outdir, paste0(species, "_", type, "_count_df_genes.csv")))
   
   count_df_product <- df_all %>%
     group_by(target_gene, Product) %>%
     summarise(count = n()) %>%   # count rows per group/item combo
     arrange(target_gene, desc(count))
   
-  write.csv(count_df_product, paste0(outdir, species, "_", type, "_count_df_product.csv"))
+  write.csv(count_df_product, file.path(outdir, paste0(species, "_", type, "_count_df_product.csv")))
   
   count_df_token_product <- df_all %>%
     group_by(target_gene, Token, Product) %>%
     summarise(count = n()) %>%   # count rows per group/item combo
     arrange(target_gene, desc(count))
   
-  write.csv(count_df_token_product, paste0(outdir, species, "_", type, "_count_df_token_product.csv"))
+  write.csv(count_df_token_product, file.path(outdir, paste0(species, "_", type, "_count_df_token_product.csv")))
   
   count_df_uniref50 <- df_all %>%
     group_by(target_gene, UniRef50) %>%
     summarise(count = n()) %>%   # count rows per group/item combo
     arrange(target_gene, desc(count))
   
-  write.csv(count_df_uniref50, paste0(outdir, species, "_", type, "_count_df_uniref50.csv"))
+  write.csv(count_df_uniref50, file.path(outdir, paste0(species, "_", type, "_count_df_uniref50.csv")))
   
   count_df_token_uniref50 <- df_all %>%
     group_by(target_gene, Token, UniRef50) %>%
     summarise(count = n()) %>%   # count rows per group/item combo
     arrange(target_gene, desc(count))
   
-  write.csv(count_df_token_uniref50, paste0(outdir, species, "_", type, "_count_df_token_uniref50.csv"))
+  write.csv(count_df_token_uniref50, file.path(outdir, paste0(species, "_", type, "_count_df_token_uniref50.csv")))
   
   count_df_product_uniref50 <- df_all %>%
     group_by(target_gene, Product, UniRef50) %>%
     summarise(count = n()) %>%   # count rows per group/item combo
     arrange(target_gene, desc(count))
   
-  write.csv(count_df_product_uniref50, paste0(outdir, species, "_", type, "_count_df_product_uniref50.csv"))
+  write.csv(count_df_product_uniref50, file.path(outdir, paste0(species, "_", type, "_count_df_product_uniref50.csv")))
   
   count_df_uniref90 <- df_all %>%
     group_by(target_gene, UniRef90) %>%
     summarise(count = n()) %>%   # count rows per group/item combo
     arrange(target_gene, desc(count))
   
-  write.csv(count_df_uniref90, paste0(outdir, species, "_", type, "_count_df_uniref90.csv"))
+  write.csv(count_df_uniref90, file.path(outdir, paste0(species, "_", type, "_count_df_uniref90.csv")))
   
   count_df_token_uniref90 <- df_all %>%
     group_by(target_gene, Token, UniRef90) %>%
     summarise(count = n()) %>%   # count rows per group/item combo
     arrange(target_gene, desc(count))
   
-  write.csv(count_df_token_uniref90, paste0(outdir, species, "_", type, "_count_df_token_uniref90.csv"))
+  write.csv(count_df_token_uniref90, file.path(outdir, paste0(species, "_", type, "_count_df_token_uniref90.csv")))
   
   count_df_product_uniref90 <- df_all %>%
     group_by(target_gene, Product, UniRef90) %>%
     summarise(count = n()) %>%   # count rows per group/item combo
     arrange(target_gene, desc(count))
   
-  write.csv(count_df_product_uniref90, paste0(outdir, species, "_", type, "_count_df_product_uniref90.csv"))
+  write.csv(count_df_product_uniref90, file.path(outdir, paste0(species, "_", type, "_count_df_product_uniref90.csv")))
   
   count_df_uniref100 <- df_all %>%
     group_by(target_gene, UniRef100) %>%
     summarise(count = n()) %>%   # count rows per group/item combo
     arrange(target_gene, desc(count))
   
-  write.csv(count_df_uniref100, paste0(outdir, species, "_", type, "_count_df_uniref100.csv"))
+  write.csv(count_df_uniref100, file.path(outdir, paste0(species, "_", type, "_count_df_uniref100.csv")))
   
   count_df_token_uniref100 <- df_all %>%
     group_by(target_gene, Token, UniRef90) %>%
     summarise(count = n()) %>%   # count rows per group/item combo
     arrange(target_gene, desc(count))
   
-  write.csv(count_df_token_uniref100, paste0(outdir, species, "_", type, "_count_df_token_uniref100.csv"))
+  write.csv(count_df_token_uniref100, file.path(outdir, paste0(species, "_", type, "_count_df_token_uniref100.csv")))
   
   count_df_product_uniref100 <- df_all %>%
     group_by(target_gene, Product, UniRef100) %>%
     summarise(count = n()) %>%   # count rows per group/item combo
     arrange(target_gene, desc(count))
   
-  write.csv(count_df_product_uniref100, paste0(outdir, species, "_", type, "_count_df_product_uniref100.csv"))
+  write.csv(count_df_product_uniref100, file.path(outdir, paste0(species, "_", type, "_count_df_product_uniref100.csv")))
 }

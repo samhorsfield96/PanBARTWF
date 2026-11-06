@@ -4,6 +4,12 @@ library(ggsci)
 library(tidyverse)
 library(optparse)
 
+option_list <- list(
+  make_option("--indir", type = "character", help = "Directory containing token pseudolikelihood files."),
+  make_option("--outdir", type = "character", help = "Directory for generated plots.")
+)
+opt <- parse_args(OptionParser(option_list = option_list))
+
 colours <- c("ST131 B/C (+ve)" = "#696969", 
              "ST131 B/C (-ve)" = "#E64B35FF",
              "ST131 A (+ve)" = "#4DBBD5FF",
@@ -58,22 +64,14 @@ parse_filename <- function(filename) {
   )
 }
 
-option_list <- list(
-  make_option("--indir", type="character", default="token_conditonal_likelhoods/", help="Directory containing *locus_pseudolikelihood.txt files. Default = 'token_conditonal_likelhoods/'"),
-  make_option("--outdir", type="character", default="figures/token_conditonal_likelhoods/", help="Output directory for saved plots. Default = 'figures/token_conditonal_likelhoods/'"),
-  make_option("--outpref", type="character", default="output", help="Output filename prefix. Default = 'output'"),
-  make_option("--labels", type="character", help="Comma-separated list of labels corresponding to input files in alphabetical order.")
-)
-opt <- parse_args(OptionParser(option_list=option_list))
-
 indir <- opt$indir
-outdir <- opt$outdir
-outpref <- opt$outpref
-files <- Sys.glob(paste(indir,"*locus_pseudolikelihood.txt", sep = ""))
+outdir <- paste0(opt$outdir, .Platform$file.sep)
+dir.create(opt$outdir, recursive = TRUE, showWarnings = FALSE)
+files <- list.files(indir, pattern = "locus_pseudolikelihood\\.txt$", full.names = TRUE)
 
-#final.df <- data.frame(Lineage = c(), Dataset = c(), GeneID = c(), GenomeID = c(), Quantile25 = c(), Quantile50 = c(), Quantile75 = c(), Min = c(), Max = c(), Mean = c())
 # non pres
-labels <- strsplit(opt$labels, ",")[[1]]
+labels <- c("ST131 B/C (-ve)", "ST131 B/C (+ve)", "ST131 A (-ve)", "ST131 A (+ve)", "ST73 (-ve)", "ST73 (+ve)", "ST95 (-ve)", "ST95 (+ve)")
+#pres
 
 
 
@@ -130,63 +128,54 @@ pairwise_comparisons <- list(c("ST131 B/C (+ve)", "ST131 B/C (-ve)"), c("ST131 B
                              c("ST131 B/C (+ve)", "ST95 (-ve)"), c("ST131 B/C (+ve)", "ST73 (+ve)"), c("ST131 B/C (+ve)", "ST73 (-ve)"))
 p.all <- ggplot(final.df, aes(x = label, y = Max, colour = label)) +
   geom_boxplot(outlier.shape = NA) + 
-  #geom_jitter(size=2, alpha=0.9) +
   facet_grid(data_type~ .) +
   guides(colour=guide_legend(title="Alignment")) +
   theme_light() +
   theme(axis.text.x = element_text(size = 18, angle = 45, hjust = 1), axis.text.y = element_text(size = 16), axis.title=element_text(size=20,face="bold"), strip.text.y = element_text(size = 16), 
         legend.title=element_text(size=14,face="bold"), legend.text=element_text(size=12), legend.position = "none") +
   scale_color_manual(values = colours) + 
-  #stat_summary(fun=mean, colour="black", geom="text", show_guide = FALSE, vjust=-1, size = 5, aes( label=round(after_stat(y), digits=2))) + 
-  #stat_summary(fun.y=mean, colour="black", geom="point", shape=18, size=2, show_guide = FALSE) + 
-  stat_compare_means(paired = FALSE, size = 5.5, label.x = 1.0, comparisons = pairwise_comparisons, label = "p.signif") +
+  stat_compare_means(paired = FALSE, size = 5.5, label.x = 1.0, comparisons = pairwise_comparisons, label = "p.signif", p.adjust.method = "bonferroni") +
   labs(y = "log pseudolikelihood", x = "Lineage")
 p.all
 
-ggsave(file=paste0(outdir, outpref, "_max_value_all.png"), plot=p.all, height = 11, width = 10)
-ggsave(file=paste0(outdir, outpref, "_max_value_all.svg"), plot=p.all, height = 11, width = 10)
+ggsave(file=paste0(outdir, "Ecoli_blaCTX-M_max_value_all.png"), plot=p.all, height = 11, width = 10)
+ggsave(file=paste0(outdir, "Ecoli_blaCTX-M_max_value_all.svg"), plot=p.all, height = 11, width = 10)
 
 # positive genomes
 subset.df.pos <- subset(final.df, bla_pos == TRUE)
 pairwise_comparisons <- list(c("ST131 B/C (+ve)", "ST131 A (+ve)"), c("ST131 B/C (+ve)", "ST95 (+ve)"), c("ST131 B/C (+ve)", "ST73 (+ve)"))
 p.pos <- ggplot(subset.df.pos, aes(x = label, y = Max, colour = label)) +
   geom_boxplot(outlier.shape = NA) + 
-  #geom_jitter(size=2, alpha=0.9) +
   facet_grid(data_type~ .) +
   guides(colour=guide_legend(title="Alignment")) +
   theme_light() +
   theme(axis.text.x = element_text(size = 18, angle = 45, hjust = 1), axis.text.y = element_text(size = 16), axis.title=element_text(size=20,face="bold"), strip.text.y = element_text(size = 16), 
         legend.title=element_text(size=14,face="bold"), legend.text=element_text(size=12), legend.position = "none") +
   scale_color_manual(values = colours) + 
-  #stat_summary(fun=mean, colour="black", geom="text", show_guide = FALSE, vjust=-1, size = 5, aes( label=round(after_stat(y), digits=2))) + 
-  #stat_summary(fun.y=mean, colour="black", geom="point", shape=18, size=2, show_guide = FALSE) + 
-  stat_compare_means(paired = FALSE, size = 5.5, label.x = 1.0, comparisons = pairwise_comparisons, label = "p.signif") +
+  stat_compare_means(paired = FALSE, size = 5.5, label.x = 1.0, comparisons = pairwise_comparisons, label = "p.signif", p.adjust.method = "bonferroni") +
   labs(y = "log pseudolikelihood", x = "Lineage")
 p.pos
 
-ggsave(file=paste0(outdir, outpref, "_max_value_pos_only.png"), plot=p.pos, height = 11, width = 10)
-ggsave(file=paste0(outdir, outpref, "_max_value_pos_only.svg"), plot=p.pos, height = 11, width = 10)
+ggsave(file=paste0(outdir, "Ecoli_blaCTX-M_max_value_pos_only.png"), plot=p.pos, height = 11, width = 10)
+ggsave(file=paste0(outdir, "Ecoli_blaCTX-M_max_value_pos_only.svg"), plot=p.pos, height = 11, width = 10)
 
 # negative genomes
 subset.df.neg <- subset(final.df, bla_pos == FALSE | label == "ST131 B/C (+ve)")
 pairwise_comparisons <- list(c("ST131 B/C (+ve)", "ST131 B/C (-ve)"), c("ST131 B/C (+ve)", "ST131 A (-ve)"), c("ST131 B/C (+ve)", "ST95 (-ve)"), c("ST131 B/C (+ve)", "ST73 (-ve)"))
 p.neg <- ggplot(subset.df.neg, aes(x = label, y = Max, colour = label)) +
   geom_boxplot(outlier.shape = NA) + 
-  #geom_jitter(size=2, alpha=0.9) +
   facet_grid(data_type~ .) +
   guides(colour=guide_legend(title="Alignment")) +
   theme_light() +
   theme(axis.text.x = element_text(size = 18, angle = 45, hjust = 1), axis.text.y = element_text(size = 16), axis.title=element_text(size=20,face="bold"), strip.text.y = element_text(size = 16), 
         legend.title=element_text(size=14,face="bold"), legend.text=element_text(size=12), legend.position = "none") +
   scale_color_manual(values = colours) + 
-  #stat_summary(fun=mean, colour="black", geom="text", show_guide = FALSE, vjust=-1, size = 5, aes( label=round(after_stat(y), digits=2))) + 
-  #stat_summary(fun.y=mean, colour="black", geom="point", shape=18, size=2, show_guide = FALSE) + 
-  stat_compare_means(paired = FALSE, size = 5.5, label.x = 1.0, comparisons = pairwise_comparisons, label = "p.signif") +
+  stat_compare_means(paired = FALSE, size = 5.5, label.x = 1.0, comparisons = pairwise_comparisons, label = "p.signif", p.adjust.method = "bonferroni") +
   labs(y = "log pseudolikelihood", x = "Lineage")
 p.neg
 
-ggsave(file=paste0(outdir, outpref, "_max_value_neg_only.png"), plot=p.neg, height = 11, width = 10)
-ggsave(file=paste0(outdir, outpref, "_max_value_neg_only.svg"), plot=p.neg, height = 11, width = 10)
+ggsave(file=paste0(outdir, "Ecoli_blaCTX-M_max_value_neg_only.png"), plot=p.neg, height = 11, width = 10)
+ggsave(file=paste0(outdir, "Ecoli_blaCTX-M_max_value_neg_only.svg"), plot=p.neg, height = 11, width = 10)
 
 # for presentation
 colours_pres <- c("ST131 B/C (+ve)" = "#800000", 
@@ -199,21 +188,17 @@ subset.df.pres <- subset(subset.df.pres, data_type == "Testing")
 pairwise_comparisons <- list(c("ST131 B/C (+ve)", "ST131 B/C (-ve)"), c("ST131 B/C (+ve)", "ST73 (+ve)"), c("ST131 B/C (+ve)", "ST73 (-ve)"))
 p.pres <- ggplot(subset.df.pres, aes(x = label, y = Max, colour = label)) +
   geom_boxplot(outlier.shape = NA) + 
-  #geom_jitter(size=2, alpha=0.9) +
-  #facet_grid(data_type~ .) +
   guides(colour=guide_legend(title="Alignment")) +
   theme_light() +
   theme(axis.text.x = element_text(size = 18), axis.text.y = element_text(size = 16), axis.title=element_text(size=20,face="bold"), strip.text.y = element_text(size = 16), 
         legend.title=element_text(size=14,face="bold"), legend.text=element_text(size=12), legend.position = "none") +
   scale_color_manual(values = colours_pres) + 
-  #stat_summary(fun=mean, colour="black", geom="text", show_guide = FALSE, vjust=-1, size = 5, aes( label=round(after_stat(y), digits=2))) + 
-  #stat_summary(fun.y=mean, colour="black", geom="point", shape=18, size=2, show_guide = FALSE) + 
-  stat_compare_means(paired = FALSE, size = 5.5, label.x = 1.0, comparisons = pairwise_comparisons, label = "p.signif") +
+  stat_compare_means(paired = FALSE, size = 5.5, label.x = 1.0, comparisons = pairwise_comparisons, label = "p.signif", p.adjust.method = "bonferroni") +
   labs(y = "log pseudolikelihood", x = "Lineage")
 p.pres
 
-ggsave(file=paste0(outdir, outpref, "_max_value_pres.png"), plot=p.pres, height = 7, width = 11)
-ggsave(file=paste0(outdir, outpref, "_max_value_pres.svg"), plot=p.pres, height = 7, width = 11)
+ggsave(file=paste0(outdir, "Ecoli_blaCTX-M_max_value_pres.png"), plot=p.pres, height = 7, width = 11)
+ggsave(file=paste0(outdir, "Ecoli_blaCTX-M_max_value_pres.svg"), plot=p.pres, height = 7, width = 11)
 
 # for presentation, all pairwise comps
 colours_pres <- c("ST131 B/C (+ve)" = "#800000", 
@@ -226,29 +211,23 @@ subset.df.pres <- subset(subset.df.pres, data_type == "Testing")
 pairwise_comparisons <- list(c("ST131 B/C (+ve)", "ST131 B/C (-ve)"), c("ST131 B/C (+ve)", "ST73 (+ve)"), c("ST131 B/C (+ve)", "ST73 (-ve)"), c("ST73 (+ve)", "ST131 B/C (-ve)"), c("ST73 (+ve)", "ST73 (-ve)"))
 p.pres <- ggplot(subset.df.pres, aes(x = label, y = Max, colour = label)) +
   geom_boxplot(outlier.shape = NA) + 
-  #geom_jitter(size=2, alpha=0.9) +
-  #facet_grid(data_type~ .) +
   guides(colour=guide_legend(title="Alignment")) +
   theme_light() +
   theme(axis.text.x = element_text(size = 18), axis.text.y = element_text(size = 16), axis.title=element_text(size=20,face="bold"), strip.text.y = element_text(size = 16), 
         legend.title=element_text(size=14,face="bold"), legend.text=element_text(size=12), legend.position = "none") +
   scale_color_manual(values = colours_pres) + 
-  #stat_summary(fun=mean, colour="black", geom="text", show_guide = FALSE, vjust=-1, size = 5, aes( label=round(after_stat(y), digits=2))) + 
-  #stat_summary(fun.y=mean, colour="black", geom="point", shape=18, size=2, show_guide = FALSE) + 
-  stat_compare_means(paired = FALSE, size = 5.5, label.x = 1.0, comparisons = pairwise_comparisons, label = "p.signif") +
+  stat_compare_means(paired = FALSE, size = 5.5, label.x = 1.0, comparisons = pairwise_comparisons, label = "p.signif", p.adjust.method = "bonferroni") +
   labs(y = "log pseudolikelihood", x = "Lineage")
 p.pres
 
-ggsave(file=paste0(outdir, outpref, "_max_value_pres_all_comps.png"), plot=p.pres, height = 7, width = 11)
-ggsave(file=paste0(outdir, outpref, "_max_value_pres_all_comps.svg"), plot=p.pres, height = 7, width = 11)
+ggsave(file=paste0(outdir, "Ecoli_blaCTX-M_max_value_pres_all_comps.png"), plot=p.pres, height = 7, width = 11)
+ggsave(file=paste0(outdir, "Ecoli_blaCTX-M_max_value_pres_all_comps.png"), plot=p.pres, height = 7, width = 11)
 
 
-# pull out top values for each category
 subset.df <- subset(final.df, label == "ST73 (+ve)")
 ST73.df.ordered <- subset.df %>%
   arrange(desc(data_type), desc(Max))
 
-# pull out top values for each category
 subset.df <- subset(final.df, label == "ST95 (+ve)")
 ST95.df.ordered <- subset.df %>%
   arrange(desc(data_type), desc(Max))
@@ -259,15 +238,12 @@ subset.df.pos <- subset(final.df, bla_pos == TRUE & data_type == "Testing")
 pairwise_comparisons <- list(c("ST131 B/C (+ve)", "ST131 A (+ve)"), c("ST131 B/C (+ve)", "ST95 (+ve)"), c("ST131 B/C (+ve)", "ST73 (+ve)"))
 p.pos.test <- ggplot(subset.df.pos, aes(x = label, y = Max, colour = label)) +
   geom_boxplot(outlier.shape = NA) + 
-  #geom_jitter(size=2, alpha=0.9) +
   guides(colour=guide_legend(title="Alignment")) +
   theme_light() +
   theme(axis.text.x = element_text(size = 16, angle = 45, hjust = 1), axis.text.y = element_text(size = 16), axis.title=element_text(size=20,face="bold"), strip.text.y = element_text(size = 16), 
         legend.title=element_text(size=14,face="bold"), legend.text=element_text(size=12), legend.position = "none") +
   scale_color_manual(values = colours) + 
-  #stat_summary(fun=mean, colour="black", geom="text", show_guide = FALSE, vjust=-1, size = 5, aes( label=round(after_stat(y), digits=2))) + 
-  #stat_summary(fun.y=mean, colour="black", geom="point", shape=18, size=2, show_guide = FALSE) + 
-  stat_compare_means(paired = FALSE, size = 5.5, label.x = 1.0, comparisons = pairwise_comparisons, label = "p.signif") +
+  stat_compare_means(paired = FALSE, size = 5.5, label.x = 1.0, comparisons = pairwise_comparisons, label = "p.signif", p.adjust.method = "bonferroni") +
   labs(y = NULL, x = NULL) +
   scale_y_continuous(limits=c(2,-15))
 p.pos.test
@@ -276,14 +252,11 @@ subset.df.neg <- subset(final.df, data_type == "Testing" & (bla_pos == FALSE | l
 pairwise_comparisons <- list(c("ST131 B/C (+ve)", "ST131 B/C (-ve)"), c("ST131 B/C (+ve)", "ST131 A (-ve)"), c("ST131 B/C (+ve)", "ST95 (-ve)"), c("ST131 B/C (+ve)", "ST73 (-ve)"))
 p.neg.test <- ggplot(subset.df.neg, aes(x = label, y = Max, colour = label)) +
   geom_boxplot(outlier.shape = NA) + 
-  #geom_jitter(size=2, alpha=0.9) +
   guides(colour=guide_legend(title="Alignment")) +
   theme_light() +
   theme(axis.text.x = element_text(size = 16, angle = 45, hjust = 1), axis.text.y = element_text(size = 16), axis.title=element_text(size=20,face="bold"), strip.text.y = element_text(size = 16), 
         legend.title=element_text(size=14,face="bold"), legend.text=element_text(size=12), legend.position = "none") +
   scale_color_manual(values = colours) + 
-  #stat_summary(fun=mean, colour="black", geom="text", show_guide = FALSE, vjust=-1, size = 5, aes( label=round(after_stat(y), digits=2))) + 
-  #stat_summary(fun.y=mean, colour="black", geom="point", shape=18, size=2, show_guide = FALSE) + 
   stat_compare_means(paired = FALSE, size = 5.5, label.x = 1.0, comparisons = pairwise_comparisons, label = "p.signif") +
   labs(y = NULL, x = NULL) +
   scale_y_continuous(limits=c(2,-15))
@@ -299,23 +272,20 @@ fig <- annotate_figure(fig,
 
 fig
 
-ggsave(file=paste0(outdir, outpref, "_max_value_testing_only_all.svg"), plot=fig, height = 7, width = 11)
-ggsave(file=paste0(outdir, outpref, "_max_value_testing_only_all.png"), plot=fig, height = 7, width = 11)
+ggsave(file=paste0(outdir, "Ecoli_blaCTX-M_max_value_testing_only_all.svg"), plot=fig, height = 7, width = 11)
+ggsave(file=paste0(outdir, "Ecoli_blaCTX-M_max_value_testing_only_all.png"), plot=fig, height = 7, width = 11)
 
 # training only
 subset.df.pos <- subset(final.df, bla_pos == TRUE & data_type == "Training")
 pairwise_comparisons <- list(c("ST131 B/C (+ve)", "ST131 A (+ve)"), c("ST131 B/C (+ve)", "ST95 (+ve)"), c("ST131 B/C (+ve)", "ST73 (+ve)"))
 p.pos.test <- ggplot(subset.df.pos, aes(x = label, y = Max, colour = label)) +
   geom_boxplot(outlier.shape = NA) + 
-  #geom_jitter(size=2, alpha=0.9) +
   guides(colour=guide_legend(title="Alignment")) +
   theme_light() +
   theme(axis.text.x = element_text(size = 16, angle = 45, hjust = 1), axis.text.y = element_text(size = 16), axis.title=element_text(size=20,face="bold"), strip.text.y = element_text(size = 16), 
         legend.title=element_text(size=14,face="bold"), legend.text=element_text(size=12), legend.position = "none") +
   scale_color_manual(values = colours) + 
-  #stat_summary(fun=mean, colour="black", geom="text", show_guide = FALSE, vjust=-1, size = 5, aes( label=round(after_stat(y), digits=2))) + 
-  #stat_summary(fun.y=mean, colour="black", geom="point", shape=18, size=2, show_guide = FALSE) + 
-  stat_compare_means(paired = FALSE, size = 5.5, label.x = 1.0, comparisons = pairwise_comparisons, label = "p.signif") +
+  stat_compare_means(paired = FALSE, size = 5.5, label.x = 1.0, comparisons = pairwise_comparisons, label = "p.signif", p.adjust.method = "bonferroni") +
   labs(y = NULL, x = NULL) +
   scale_y_continuous(limits=c(2,-15))
 p.pos.test
@@ -324,15 +294,12 @@ subset.df.neg <- subset(final.df, data_type == "Training" & (bla_pos == FALSE | 
 pairwise_comparisons <- list(c("ST131 B/C (+ve)", "ST131 B/C (-ve)"), c("ST131 B/C (+ve)", "ST131 A (-ve)"), c("ST131 B/C (+ve)", "ST95 (-ve)"), c("ST131 B/C (+ve)", "ST73 (-ve)"))
 p.neg.test <- ggplot(subset.df.neg, aes(x = label, y = Max, colour = label)) +
   geom_boxplot(outlier.shape = NA) + 
-  #geom_jitter(size=2, alpha=0.9) +
   guides(colour=guide_legend(title="Alignment")) +
   theme_light() +
   theme(axis.text.x = element_text(size = 16, angle = 45, hjust = 1), axis.text.y = element_text(size = 16), axis.title=element_text(size=20,face="bold"), strip.text.y = element_text(size = 16), 
         legend.title=element_text(size=14,face="bold"), legend.text=element_text(size=12), legend.position = "none") +
   scale_color_manual(values = colours) + 
-  #stat_summary(fun=mean, colour="black", geom="text", show_guide = FALSE, vjust=-1, size = 5, aes( label=round(after_stat(y), digits=2))) + 
-  #stat_summary(fun.y=mean, colour="black", geom="point", shape=18, size=2, show_guide = FALSE) + 
-  stat_compare_means(paired = FALSE, size = 5.5, label.x = 1.0, comparisons = pairwise_comparisons, label = "p.signif") +
+  stat_compare_means(paired = FALSE, size = 5.5, label.x = 1.0, comparisons = pairwise_comparisons, label = "p.signif", p.adjust.method = "bonferroni") +
   labs(y = NULL, x = NULL) +
   scale_y_continuous(limits=c(2,-15))
 p.neg.test
@@ -347,5 +314,5 @@ fig <- annotate_figure(fig,
 
 fig
 
-ggsave(file=paste0(outdir, outpref, "_max_value_training_only_all.svg"), plot=fig, height = 7, width = 11)
-ggsave(file=paste0(outdir, outpref, "_max_value_training_only_all.png"), plot=fig, height = 7, width = 11)
+ggsave(file=paste0(outdir, "Ecoli_blaCTX-M_max_value_training_only_all.svg"), plot=fig, height = 7, width = 11)
+ggsave(file=paste0(outdir, "Ecoli_blaCTX-M_max_value_training_only_all.png"), plot=fig, height = 7, width = 11)

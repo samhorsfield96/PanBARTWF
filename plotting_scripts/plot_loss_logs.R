@@ -3,6 +3,12 @@ library(ggsci)
 library(ggpubr)
 library(optparse)
 
+option_list <- list(
+  make_option("--indir", type = "character", help = "Directory containing Pneumo/ and Ecoli/ log folders."),
+  make_option("--outdir", type = "character", help = "Directory for generated plots.")
+)
+opt <- parse_args(OptionParser(option_list = option_list))
+
 parse_filename <- function(filename) {
   list(
     Sampled = if (grepl("_sampled_", filename)) {
@@ -123,12 +129,19 @@ plot_results <- function(df_paths, outpref) {
   ggsave(file=paste(outpref, "_full.png", sep = ""), plot=full_plot, height = 14, width = 8)
 }
 
-option_list <- list(
-  make_option("--infiles", type="character", help="Comma-separated list of parsed training log .txt files."),
-  make_option("--outpref", type="character", default="output", help="Output prefix for saved plots. Default = 'output'")
-)
-opt <- parse_args(OptionParser(option_list=option_list))
+outdir <- opt$outdir
+dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 
-df_paths <- strsplit(opt$infiles, ",")[[1]]
-outpref <- opt$outpref
-plot_results(df_paths, outpref)
+species_dirs <- c(
+  S_pneumoniae = file.path(opt$indir, "Pneumo"),
+  E_coli = file.path(opt$indir, "Ecoli")
+)
+for (species in names(species_dirs)) {
+  indir <- species_dirs[[species]]
+  df_paths <- list.files(indir, pattern = "_logs\\.txt$", full.names = TRUE)
+  if (length(df_paths) == 0) {
+    stop("No log files found in ", indir)
+  }
+  plot_results(df_paths, file.path(outdir, species))
+}
+

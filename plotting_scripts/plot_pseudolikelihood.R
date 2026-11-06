@@ -21,7 +21,6 @@ data$pseudolikelihood <- exp(data$log_pseudolikelihood)
 
 pairwise_comparisons <- list(c("Trained", "Similar"), c("Trained", "Novel"), c("Similar", "Novel"), 
                              c("Similar", "Random"), c("Novel", "Random"), c("Trained", "Random"))
-#pairwise_comparisons <- list(c("Similar", "Novel"))
 data_subset <- subset(data, Inference == "Encoder-decoder")
 p <- ggplot(data_subset, aes(x = Type, y = log_pseudolikelihood, colour = Type)) +
   geom_boxplot(outlier.shape = NA) + geom_jitter(size=2, alpha=0.9) +
@@ -41,7 +40,6 @@ ggsave(file=paste0(opt$outpref, "_comparison_encoder_decoder_all_plot.png"), plo
 # for presentation
 colour_vec <- c("Trained" = "#CD4309", "Similar" = "#2f47ed",  "Novel" = "#fcb43a", "Random" = "#0a895e", "Diff. Species" = "#8e6f48")
 pairwise_comparisons <- list(c("Trained", "Similar"), c("Trained", "Novel"), c("Similar", "Novel"))
-#pairwise_comparisons <- list(c("Similar", "Novel"))
 data_subset <- subset(data, Inference == "Encoder-decoder" & Type != "Random" & Type != "Diff. Species")
 p <- ggplot(data_subset, aes(x = Type, y = log_pseudolikelihood, colour = Type)) +
   geom_boxplot(outlier.shape = NA) + 
@@ -56,7 +54,6 @@ ggsave(file=paste0(opt$outpref, "_comparison_presentation_trained.png"), plot=p,
 
 pairwise_comparisons <- list(c("Random", "Similar"), 
                              c("Novel", "Random"), c("Novel", "Similar"))
-#pairwise_comparisons <- list(c("Similar", "Novel"))
 data_subset <- subset(data, Inference == "Encoder-decoder" & Type != "Trained" & Type != "Diff. Species")
 p <- ggplot(data_subset, aes(x = Type, y = log_pseudolikelihood, colour = Type)) +
   geom_boxplot(outlier.shape = NA) + 
@@ -72,7 +69,6 @@ ggsave(file=paste0(opt$outpref, "_comparison_presentation_random.png"), plot=p, 
 # all comparisons
 pairwise_comparisons <- list(c("Diff. Species", "Random"), c("Random", "Similar"), 
                              c("Novel", "Random"))
-#pairwise_comparisons <- list(c("Similar", "Novel"))
 data_subset <- subset(data, Inference == "Encoder-decoder" & Type != "Trained")
 p <- ggplot(data_subset, aes(x = Type, y = log_pseudolikelihood, colour = Type)) +
   geom_boxplot(outlier.shape = NA) + 
@@ -84,4 +80,3 @@ p <- ggplot(data_subset, aes(x = Type, y = log_pseudolikelihood, colour = Type))
   labs(y = "log pseudolikelihood", x = "Prompted Genome")
 p
 ggsave(file=paste0(opt$outpref, "_comparison_diff_species_random.png"), plot=p, height = 6, width = 8)
-

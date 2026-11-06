@@ -5,6 +5,14 @@ library(rlang)
 library(dplyr)
 library(optparse)
 
+option_list <- list(
+  make_option("--indir", type = "character", help = "Root directory containing species assignment subdirectories."),
+  make_option("--outdir", type = "character", help = "Directory for generated plots."),
+  make_option("--species", type = "character", default = "S_pneumoniae,E_coli",
+              help = "Comma-separated species subdirectory names.")
+)
+opt <- parse_args(OptionParser(option_list = option_list))
+
 parse_filename <- function(filename) {
   list(
     Sampled = if (grepl("_sampled_", filename)) {
@@ -28,6 +36,16 @@ parse_filename <- function(filename) {
       FALSE
     },
     Sketchlib = if (grepl("sketchlib", filename)) {
+      TRUE
+    } else {
+      FALSE
+    },
+    Bacformer = if (grepl("bacformer", filename)) {
+      TRUE
+    } else {
+      FALSE
+    },
+    Bacformer_complete = if (grepl("bacformer_complete", filename)) {
       TRUE
     } else {
       FALSE
@@ -66,10 +84,13 @@ assign_database_name <- function(df_all){
 generate_bal_plots <- function(data_subset, outpref, legend_title, facets)
 {
   rows <- "Species_long"
-  # TODO see how this works in the paper
+  
   if (facets == "Lineages") {
     p_bal_accuracy <- ggplot(data_subset, aes(x = K, y=Accuracy, colour = Classifier)) +
-      geom_line(linewidth=1) +
+      geom_smooth(method = "loess", 
+                  method.args = list(control = loess.control(
+                    surface = "direct"
+                  ))) +
       scale_colour_npg() +
       theme_light() +
       facet_wrap(DatasetName ~ ., ncol=4) +
@@ -83,7 +104,8 @@ generate_bal_plots <- function(data_subset, outpref, legend_title, facets)
         strip.text.y = element_text(size = 12)
       ) +
       guides(colour=guide_legend(title="Classifier")) +
-      labs(x = "K-value", y = "Balanced Accuracy") +
+      labs(x = "k-value", y = "Cluster Assignment Accuracy") +
+      scale_y_continuous(breaks = c(0.0,0.25,0.5,0.75,1.0)) +
       geom_hline(yintercept = 1, linetype="dashed")
     p_bal_accuracy
     ggsave(file=paste(outpref, "bal_acc_lineages.svg", sep = ""), plot=p_bal_accuracy, height = 5, width = 10)
@@ -92,7 +114,7 @@ generate_bal_plots <- function(data_subset, outpref, legend_title, facets)
   
   if (facets == "Unknown_token") {
     p_bal_accuracy <- ggplot(data_subset, aes(x = K, y=Accuracy, colour = Classifier, linetype = Data)) +
-      geom_line(linewidth=1) +
+      geom_smooth(method = "loess") +
       scale_colour_npg() +
       theme_light() +
       facet_grid(Species_long ~ Unknown_token) +
@@ -106,50 +128,61 @@ generate_bal_plots <- function(data_subset, outpref, legend_title, facets)
         strip.text.y = element_text(size = 12, face = "italic")
       ) +
       guides(colour=guide_legend(title="Classifier")) +
-      labs(x = "K-value", y = "Balanced Accuracy") +
+      labs(x = "k-value", y = "Cluster Assignment Accuracy") +
+      scale_y_continuous(breaks = c(0.0,0.25,0.5,0.75,1.0)) +
       geom_hline(yintercept = 1, linetype="dashed")
     p_bal_accuracy
     ggsave(file=paste(outpref, "bal_acc_unknown_token.svg", sep = ""), plot=p_bal_accuracy, height = 5, width = 8)
     ggsave(file=paste(outpref, "bal_acc_unknown_token.png", sep = ""), plot=p_bal_accuracy, height = 5, width = 8)
   }
+ 
+  
+  # p_bal_accuracy
+  # p_bal_precision
+  # p_bal_recall
+  #   p_bal_precision + xlab(""), 
+  #   p_bal_recall + xlab(""),
+  #   p_bal_accuracy + xlab(""),
+  # full_plot
+  # full_plot
 }
 
 generate_unbal_plots <- function(data_subset, outpref, legend_title, facets)
 {
   p_accuracy <- ggplot(data_subset, aes(x = K, y=Accuracy, colour = Data, linetype = Classifier)) +
-    geom_line(linewidth=1.5) +
+    geom_smooth(method = "loess") +
     scale_colour_npg() +
     theme_light() +
     facet_grid(cols = vars(!!sym(facets))) +
     theme(axis.text.x = element_text(size = 12), axis.text.y = element_text(size = 12), axis.title=element_text(size=16,face="bold"), legend.title=element_text(size=16,face="bold"), legend.text=element_text(size=14), strip.text = element_text(size=12)) +
     guides(colour=guide_legend(title=legend_title)) +
-    labs(x = "K-value", y = "Accuracy") +
+    labs(x = "k-value", y = "Accuracy") +
     geom_hline(yintercept = 1, linetype="dashed")
   p_accuracy
   ggsave(file=paste(outpref, "_acc.svg", sep = ""), plot=p_accuracy, height = 6, width = 8)
   ggsave(file=paste(outpref, "_acc.png", sep = ""), plot=p_accuracy, height = 6, width = 8)
   
   p_precision <- ggplot(data_subset, aes(x = K, y=Precision, colour = Data, linetype = Classifier)) +
-    geom_line(linewidth=1.5) +
+    geom_smooth(method = "loess") +
     scale_colour_npg() +
     theme_light() +
     facet_grid(cols = vars(!!sym(facets))) +
     theme(axis.text.x = element_text(size = 12), axis.text.y = element_text(size = 12), axis.title=element_text(size=16,face="bold"), legend.title=element_text(size=16,face="bold"), legend.text=element_text(size=14), strip.text = element_text(size=12)) +
     guides(colour=guide_legend(title=legend_title)) +
-    labs(x = "K-value", y = "Precision") +
+    labs(x = "k-value", y = "Precision") +
     geom_hline(yintercept = 1, linetype="dashed")
   p_precision
   ggsave(file=paste(outpref, "_precision.svg", sep = ""), plot=p_precision, height = 6, width = 8)
   ggsave(file=paste(outpref, "_precision.png", sep = ""), plot=p_precision, height = 6, width = 8)
   
   p_recall <- ggplot(data_subset, aes(x = K, y=Recall, colour = Data, linetype = Classifier)) +
-    geom_line(linewidth=1.5) +
+    geom_smooth(method = "loess") +
     scale_colour_npg() +
     theme_light() +
     facet_grid(cols = vars(!!sym(facets))) +
     theme(axis.text.x = element_text(size = 12), axis.text.y = element_text(size = 12), axis.title=element_text(size=16,face="bold"), legend.title=element_text(size=16,face="bold"), legend.text=element_text(size=14), strip.text = element_text(size=12)) +
     guides(colour=guide_legend(title=legend_title)) +
-    labs(x = "K-value", y = "Recall") +
+    labs(x = "k-value", y = "Recall") +
     geom_hline(yintercept = 1, linetype="dashed")
   p_recall
   ggsave(file=paste(outpref, "_recall.svg", sep = ""), plot=p_recall, height = 6, width = 8)
@@ -169,6 +202,7 @@ plot_results <- function(df_paths, outpref) {
     for (name in names(parsed_values)) {
       df[[name]] <- parsed_values[[name]]
     }
+    df$filename <- filename
     
     if (j == 1) {
       df_all <- df
@@ -193,12 +227,13 @@ plot_results <- function(df_paths, outpref) {
   df_all['Unknown_token'][df_all['With_unk'] == FALSE] <- "Without unknown"
   
   df_all['Classifier'][df_all['Sketchlib'] == TRUE] <- "Sketchlib"
-  df_all['Classifier'][df_all['Sketchlib'] == FALSE] <- "PanBART"
-  
+  df_all['Classifier'][df_all['Sketchlib'] == FALSE & df_all['Bacformer'] == TRUE & df_all['Bacformer_complete'] == FALSE] <- "Bacformer-L (MAG)"
+  df_all['Classifier'][df_all['Sketchlib'] == FALSE & df_all['Bacformer'] == TRUE & df_all['Bacformer_complete'] == TRUE] <- "Bacformer-L (Complete)"
+  df_all['Classifier'][df_all['Sketchlib'] == FALSE & df_all['Bacformer'] == FALSE & df_all['Bacformer_complete'] == FALSE] <- "PanBART"
   
   df_all$Data <- factor(df_all$Data, levels = c("10%", "100%"))
   df_all$Lineages <- factor(df_all$Lineages, levels = c("All lineages", "Subset lineages", "Held-out lineages"))
-  df_all$Classifier <- factor(df_all$Classifier, levels = c("PanBART", "Sketchlib"))
+  df_all$Classifier <- factor(df_all$Classifier, levels = c("PanBART", "Sketchlib", "Bacformer-L (MAG)", "Bacformer-L (Complete)"))
   df_all$Species_long <- gsub("_", ". ", df_all$Species)
   
   # add final row which assigns database name
@@ -206,38 +241,29 @@ plot_results <- function(df_paths, outpref) {
   
   legend_title <- "Training\ndataset"
   facets <- "Lineages"
-  data_subset = subset(df_all, (Label != "overall") & (Lineages != "Held-out lineages") & ((Held_out_only != TRUE & With_unk == TRUE) | Sketchlib == TRUE))
+  data_subset = subset(df_all, (Label != "overall") & (Lineages != "Held-out lineages") & ((Held_out_only != TRUE & With_unk == TRUE) | (With_unk != TRUE & (Sketchlib == TRUE | Bacformer == TRUE))))
   generate_bal_plots(data_subset, outpref, legend_title, facets)
-  #data_subset = subset(df_all, (Label == "overall") & ((Held_out_only != TRUE & With_unk == TRUE) | Sketchlib == TRUE))
-  #generate_unbal_plots(data_subset, outpref, legend_title, facets)
   
   facets <- "Unknown_token"
-  data_subset = subset(df_all, Label != "overall" & Held_out_only == TRUE)
-  generate_bal_plots(data_subset, paste0(outpref, "_held_out_only"), legend_title, facets)
-  #data_subset = subset(df_all, Label == "overall" & Held_out_only == TRUE)
-  #generate_unbal_plots(data_subset, paste0(outpref, "_held_out_only"), legend_title, facets)
+  data_subset = subset(df_all, Label != "overall" & (Held_out_only == TRUE | Sketchlib == TRUE))
+  generate_bal_plots(data_subset, paste0(outpref, "held_out_only"), legend_title, facets)
 }
-
-option_list <- list(
-  make_option("--indir", type="character", help="Input directory containing species subdirectories with *_overall_accuracy.tsv files."),
-  make_option("--outdir", type="character", help="Output directory for saved plots."),
-  make_option("--species", type="character", default="S_pneumoniae,E_coli", help="Comma-separated species subdirectory names. Default = 'S_pneumoniae,E_coli'")
-)
-opt <- parse_args(OptionParser(option_list=option_list))
 
 indir <- opt$indir
 outdir <- opt$outdir
-species_list <- strsplit(opt$species, ",")[[1]]
+species_list <- strsplit(opt$species, ",", fixed = TRUE)[[1]]
+dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
 
 {
   df_paths <- unlist(lapply(species_list, function(sp) {
     list.files(
-      path = paste0(indir, sp, "/"),
-      pattern = "*_overall_accuracy.tsv",
+      path = file.path(indir, sp),
+      pattern = "per_label_accuracy\\.tsv$",
+      recursive = TRUE,
       full.names = TRUE
     )
   }))
-  outpref <- outdir
+  
+  outpref <- paste0(outdir, .Platform$file.sep)
   plot_results(df_paths, outpref)
 }
-
